@@ -1,0 +1,102 @@
+.container {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    height: 320px;
+  }
+  
+  .categoriesContainer {
+    display: flex;
+    flex-direction: row;
+    gap: 12px;
+    margin-top: 18px;
+  }
+  
+  .rowContainer {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-end;
+    gap: 20px;
+  }
+  
+  .alertsContainer {
+    display: flex;
+    flex-direction: row;
+    gap: 4px;
+    margin-top: 8px;
+  }
+  
+  .performanceTopInputsContainer {
+    display: flex;
+    gap: 20px;
+  }
+  
+  .alertsInput {
+    width: 300px !important;
+  }
+  
+  .inputContainer {
+    position: relative;
+  }
+  
+  .dropdown {
+    position: absolute;
+    width: 100%;
+    margin-top: 2px;
+    left: 1px;
+    z-index: 10;
+    border-radius: 2px;
+    background-color: white;
+    box-shadow: rgba(24, 26, 27, 0.18) 0px 13px 20px 1px;
+    max-height: 160px;
+    overflow-y: scroll;
+    overflow-x: hidden;
+  }
+  
+  .dropdownOption {
+    color: #1b1b1b;
+    margin: 0;
+    cursor: pointer;
+    padding: 8px;
+    word-wrap: break-word;
+  }
+  
+  .dropdownOptionClassInstanceHS {
+    padding: 8px;
+    cursor: pointer;
+  }
+  
+  .dropdownOptionClassInstanceNameHS {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    word-wrap: break-word;
+  }
+  
+  .dropdownOptionText {
+    color: #1b1b1b;
+    margin: 0;
+  }
+  
+  .dropdownOptionSubText {
+    color: #4b4b4b;
+    font-size: 12px;
+    margin: 0;
+    word-wrap: break-word;
+  }
+  
+  .dropdownOption:hover {
+    background-color: rgba(228, 228, 228, 1);
+  }
+  
+  .dropdownOptionClassInstanceHS:hover {
+    background-color: rgba(228, 228, 228, 1);
+  }
+  
+  .radioGroup {
+    display: flex;
+    gap: 42px;
+    margin-top: 12px;
+    margin-bottom: 18px;
+  }
+  
