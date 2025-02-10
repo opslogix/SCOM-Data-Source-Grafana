@@ -39,11 +39,11 @@ type ScomAlert struct {
 }
 
 type StateDataRequestBody struct {
-	ClassID        string   `json:"classId"`
-	GroupID        string   `json:"groupId"`
-	ObjectIds      []string `json:"objectIds"`
-	Criteria       string   `json:"criteria"`
-	DisplayColumns []string `json:"displayColumns"`
+	ClassID        string                 `json:"classId"`
+	GroupID        string                 `json:"groupId"`
+	ObjectIds      map[string]interface{} `json:"objectIds"`
+	Criteria       string                 `json:"criteria"`
+	DisplayColumns []string               `json:"displayColumns"`
 }
 
 type StateDataRow struct {
@@ -111,9 +111,10 @@ type PerformanceResponse struct {
 }
 
 type ScomPerformanceRequest struct {
-	Duration            int                  `json:"duration"`
-	ID                  string               `json:"id"`
-	PerformanceCounters []PerformanceCounter `json:"performanceCounters"`
+	Duration int    `json:"duration"`
+	ID       string `json:"id"`
+	// PerformanceCounters []PerformanceCounter `json:"performanceCounters"`
+	PerformanceCounters []interface{} `json:"performanceCounters"`
 }
 
 type ScomPerformanceResponse struct {
@@ -133,6 +134,16 @@ type PerformanceCounterData struct {
 		CounterName  string `json:"countername"`
 		InstanceName string `json:"instancename"`
 	} `json:"rows"`
+}
+
+type PerformanceCounterResponse struct {
+	TableColumns []struct {
+		Field  string      `json:"field"`
+		Header string      `json:"header"`
+		Type   interface{} `json:"type"`
+		Hidden bool        `json:"hidden"`
+	} `json:"tableColumns"`
+	Rows []PerformanceCounter `json:"rows"`
 }
 
 type MonitoringClass struct {

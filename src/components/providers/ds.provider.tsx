@@ -1,14 +1,19 @@
 import { ScomDataSource } from "datasource";
-import React, { createContext, useContext, useState } from "react";
+import React, { createContext, useContext } from "react";
 import { MonitoringClass, MonitoringGroup, MonitoringObject, MyQuery, PerformanceCounter } from "types";
 
 interface DsContextProps {
+    query: MyQuery
+    getAlerts: (criteria: string) => Promise<void>
+    getState(classes: MonitoringClass[], instances: MonitoringObject[]): Promise<void>
+    getStateByGroup(groups: MonitoringGroup, classes: MonitoringClass[]): Promise<void>
+    getPerformance: (instances: MonitoringObject[], counters: PerformanceCounter[], classes: MonitoringClass[]) => Promise<void>;
     getClasses: (criteria: string) => Promise<MonitoringClass[]>;
     getMonitoringObjects: (criteria: string) => Promise<MonitoringObject[]>;
-    getMonitoringGroups: () => Promise<any>;
-    getMonitors: () => Promise<any>;
-    getPerformance: () => Promise<any>;
-    counters: () => Promise<PerformanceCounter[]>;
+    getMonitoringGroups: () => Promise<MonitoringGroup[]>;
+    // getMonitors: () => Promise<any>;
+    //Executes grafana query
+    getPerformanceCounters: (className: string) => Promise<PerformanceCounter[]>;
 }
 
 interface DsProviderProps {
@@ -21,31 +26,7 @@ interface DsProviderProps {
 
 const DsContext = createContext<DsContextProps | undefined>(undefined);
 
-export const DsProvider = ({ children, datasource}: DsProviderProps) => {
-
-    // const [groups, setGroups] = useState<any[]>([]);
-    // const [instances, setInstances] = useState<any[]>([]);
-    // const [classes, setClasses] = useState<any[]>([]);
-    // const [monitors, setMonitors] = useState<any[]>([]);
-    // const [performance, setPerformance] = useState<any[]>([]);
-    // const [groupsData, setGroupsData] = useState<any[]>([]);
-
-    //   useEffect(() => {
-    //     // Fetch all groups and save in state for filtering them out from all the classes.
-    //     const fetchGroups = async () => {
-    //       try {
-    //         const groups = await datasource.getResource('getGroups', { groupQueryCriteria: '' });
-    //         setGroupsData(groups);
-    //       } catch (error) {
-    //         console.log('group data error: ', error);
-    //       }
-    //     };
-    
-    //     fetchGroups();
-    //   }, [datasource]);
-
-    const [cachedCounters, setCounters] = useState<PerformanceCounter[]>([]);
-
+export const DsProvider = ({ children, datasource, query, onChange, onRunQuery }: DsProviderProps) => {
     const values = {
         getClasses: async (query?: string) => {
             console.log('getClasses', query);
@@ -55,7 +36,7 @@ export const DsProvider = ({ children, datasource}: DsProviderProps) => {
         },
         getMonitoringObjects: async (className?: string) => {
             console.log('getMonitoringObjects', className);
-            const instances = await datasource.getResource<MonitoringObject[]>('getObjects', {  className  });
+            const instances = await datasource.getResource<MonitoringObject[]>('getObjects', { className });
             console.log('getMonitoringObjects: instances', instances);
             return instances;
         },
@@ -69,21 +50,58 @@ export const DsProvider = ({ children, datasource}: DsProviderProps) => {
             console.log('getMonitors');
             return await datasource.getResource('getMonitors', { criteria: '' });
         },
-        getPerformance: async () => {
-            console.log('getPerformance');
-            return await datasource.getResource('getPerformance', { criteria: '' });
-        },
-        counters: async () => {
-            if(cachedCounters?.length > 0) {
-                console.log('cachedCounters', cachedCounters);
-                return cachedCounters;
-            }
+        getPerformanceCounters: async (performanceObjectId: string) => {
+            console.log('getPerformanceCounters: id', performanceObjectId);
+            const counters = await datasource.getResource<PerformanceCounter[]>('getCounters', { performanceObjectId });
+            console.log('getPerformanceCounters: counters', counters);
 
-            const counters = await datasource.getResource<PerformanceCounter[]>('getCounters', { criteria: '' });
-            console.log('counters');
-            setCounters(counters);
-            return counters;    
-        }
+            return counters;
+        },
+        getPerformance: async (instances: MonitoringObject[], counters: PerformanceCounter[], classes: MonitoringClass[]) => {
+            //Execute actual query
+            console.log('getPerformance: ', instances, counters);
+            onChange({
+                ...query,
+                type: "performance",
+                classes,
+                counters,
+                instances
+            });
+            onRunQuery();
+        },
+        getAlerts: async (criteria: string) => {
+            console.log('getAlerts: ', criteria)
+            onChange({
+                ...query,
+                type: "alerts",
+                criteria
+            });
+            onRunQuery();
+        },
+        getState: async (classes: MonitoringClass[], instances: MonitoringObject[]) => {
+            console.log('getState', classes, instances);
+            onChange({
+                ...query,
+                type: "state",
+                groups: undefined,
+                classes,
+                instances
+            });
+            onRunQuery();
+        },
+        getStateByGroup: async (group: MonitoringGroup, classes: MonitoringClass[]) => {
+            console.log('getStateByGroup', group, classes);
+            onChange({
+                ...query,
+                type: "state",
+                groups: [group],
+                classes,
+                instances: undefined
+                
+            })
+            onRunQuery();
+        },
+        query
     }
 
     return (
@@ -95,7 +113,7 @@ export const DsProvider = ({ children, datasource}: DsProviderProps) => {
 
 export const useDs = () => {
     const context = useContext(DsContext);
-    if(context === undefined) {
+    if (context === undefined) {
         throw new Error('useDs must be used within a DsProvider');
     }
 

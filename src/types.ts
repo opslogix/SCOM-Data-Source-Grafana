@@ -5,8 +5,9 @@ export interface MyQuery extends DataQuery {
   type: 'performance' | 'alerts' | 'state',
   classes?: MonitoringClass[],
   instances?: MonitoringObject[],
-  criteria?: string;
-  counters?: PerformanceCounter[]
+  counters?: PerformanceCounter[],
+  groups?: MonitoringGroup[],
+  criteria?: string
 }
 
 export const DEFAULT_QUERY: Partial<MyQuery> = {

@@ -1,54 +1,21 @@
 import React, { useState } from 'react';
-import { AsyncSelect, RadioButtonList, Select } from '@grafana/ui';
-// import ClassInput from './ClassInput';
-// import CounterInput from './CounterInput';
-// import GroupInput from './GroupInput';
-// import ObjectInputCheckbox from './ObjectInputCheckbox';
+import { AsyncSelect, Button, Field, RadioButtonList, Select } from '@grafana/ui';
 import { useDs } from './providers/ds.provider';
-import { MonitoringClass, MonitoringGroup, MonitoringObject } from 'types';
-
-// type Props = {
-//   query: MyQuery;
-//   datasource: ScomDataSource;
-//   onChange: (query: MyQuery) => void;
-//   onRunQuery: () => void;
-//   groupsData: GroupData[];
-// };
+import { MonitoringClass, MonitoringGroup, MonitoringObject, PerformanceCounter } from 'types';
 
 export default function PerformanceSection() {
 
-  const { getClasses, getMonitoringObjects } = useDs();
-  // const [selectedClass, onSelectClass] = useState<MonitoringClass | undefined>();
-  // const [selectedInstance, setSelectedInstance] = useState<MonitoringObject | undefined>();
+  const { getClasses, getMonitoringObjects, getPerformanceCounters, getPerformance, query } = useDs();
 
   const SINGLE_CLASS = 'singleClass';
   const GROUP = 'group';
   const [selectedRadioOption, setSelectedRadioOption] = useState(SINGLE_CLASS);
 
-  const [selectedClass, setSelectedClass] = useState<MonitoringClass | undefined | null>();
-  const [selectedInstance, setSelectedInstance] = useState<MonitoringObject | undefined | null>();
+  const [selectedClass, setSelectedClass] = useState<MonitoringClass | undefined | null>(query?.classes?.at(0));
+  const [selectedInstance, setSelectedInstance] = useState<MonitoringObject | undefined | null>(query?.instances?.at(0));
   const [classInstances, setClassInstances] = useState<MonitoringObject[]>([]);
-  // const [objectsData, setObjectsData] = useState<ObjectData[]>([]);
-  // const [countersData, setCountersData] = useState<CounterData[]>([]);
-  // const [counterObjectNamesData, setCounterObjectNamesData] = useState<string[]>([]);
-  // const [counterNamesData, setCounterNamesData] = useState<string[]>([]);
-  // const [counterInstanceNamesData, setCounterInstanceNamesData] = useState<string[]>([]);
-
-  // /******** Reset data ********/
-  // // We use this approach (useState + useEffect) to avoid delays in displaying values.
-  // const [resetObjectsData, setResetObjectsData] = useState(false);
-  // const [resetCounterObjectNamesData, setResetCounterObjectNamesData] = useState(false);
-  // const [resetCounterNamesData, setResetCounterNamesData] = useState(false);
-  // const [resetCounterInstanceNamesData, setResetCounterInstanceNamesData] = useState(false);
-
-  /******** Selected values ********/
-  // const [selectedCounterName, setSelectedCounterName] = useState('');
-  // const [selectedCounterObjectName, setSelectedCounterObjectName] = useState('');
-  // const [selectedCounterInstanceName, setSelectedCounterInstanceName] = useState('');
-  // const [checkedObjects, setCheckedObjects] = useState<Set<ObjectData>>(new Set());
-  // const [selectedClassDisplayName, setSelectedClassDisplayName] = useState('');
-  // const [selectedGroup, setSelectedGroup] = useState<GroupData>();
-  // const [objectsGroup, setObjectsGroup] = useState();
+  const [performanceCounters, setPerformanceCounters] = useState<PerformanceCounter[]>([]);
+  const [selectedPerformanceCounter, setSelectedPerformanceCounter] = useState<PerformanceCounter | undefined | null>(query?.counters?.at(0));
 
   const onClassSelect = async (v?: MonitoringClass | undefined) => {
     if (v === undefined) {
@@ -60,11 +27,22 @@ export default function PerformanceSection() {
     setClassInstances(await getMonitoringObjects(v.className));
   }
 
-  const onInstanceSelect = (v?: MonitoringObject | undefined) => {
+  const onInstanceSelect = async (v?: MonitoringObject | undefined) => {
+    if (v == null) {
+      return;
+    }
+
+    setSelectedInstance(v);
+    setPerformanceCounters(await getPerformanceCounters(v.id));
+  }
+
+  const onPerformanceCounterSelect = async (v?: PerformanceCounter | undefined) => {
     if (v === undefined) {
       return;
     }
-    setSelectedInstance(v);
+
+    setSelectedPerformanceCounter(v);
+    //Execute query?
   }
 
   const loadClassOptions = async (inputValue: string): Promise<MonitoringClass[]> => {
@@ -86,21 +64,42 @@ export default function PerformanceSection() {
       {
         selectedRadioOption === SINGLE_CLASS ? (
           <>
-            <AsyncSelect<MonitoringClass>
-              aria-label='Select class'
-              defaultOptions={true}
-              value={selectedClass}
-              getOptionLabel={(v) => v.displayName}
-              loadOptions={loadClassOptions}
-              onChange={(v) => onClassSelect(v as MonitoringClass)}
-              cacheOptions={true}
-            />
-            <Select<MonitoringObject>
-              getOptionLabel={(v) => v.displayName}
-              value={selectedInstance}
-              options={classInstances}
-              onChange={(v) => onInstanceSelect(v as MonitoringObject)}
-            />
+              <AsyncSelect<MonitoringClass>
+                defaultOptions={true}
+                value={selectedClass}
+                getOptionLabel={(v) => v.displayName}
+                loadOptions={loadClassOptions}
+                onChange={(v) => onClassSelect(v as MonitoringClass)}
+                cacheOptions={true}
+              />
+              <Select<MonitoringObject>
+                disabled={selectedClass == null}
+                getOptionLabel={(v) => v.displayName}
+                value={selectedInstance}
+                options={classInstances}
+                onChange={(v) => onInstanceSelect(v as MonitoringObject)}
+              />
+
+            {
+              selectedInstance && (
+                  <Select<PerformanceCounter>
+                    disabled={selectedInstance == null}
+                    getOptionLabel={(v) => v.counterName}
+                    value={selectedPerformanceCounter}
+                    options={performanceCounters}
+                    onChange={(v) => onPerformanceCounterSelect(v as PerformanceCounter)} />
+
+              )
+            }
+            {
+              selectedPerformanceCounter && selectedInstance && selectedClass && (
+                <Field>
+                  <Button variant="secondary" icon="thumbs-up" onClick={() => getPerformance([selectedInstance], [selectedPerformanceCounter], [selectedClass])}>
+                    Apply
+                  </Button>
+                </Field>
+              )
+            }
           </>
         ) : (
           <>

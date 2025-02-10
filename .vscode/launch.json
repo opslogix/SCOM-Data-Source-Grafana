@@ -23,7 +23,7 @@
       "substitutePath": [
         {
           "from": "${workspaceFolder}",
-          "to": "/root/test-test-datasource"
+          "to": "/root/opslogix-scompluginbyopslogix-datasource"
         }
       ]
     }

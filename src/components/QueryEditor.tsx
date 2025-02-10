@@ -6,6 +6,8 @@ import { ScomDataSourceOptions, MyQuery } from '../types';
 import PerformanceSection from './PerformanceSection';
 import { DsProvider } from './providers/ds.provider';
 import './Styles.css';
+import AlertsSection from './AlertsSection';
+import HealthStateSection from './HealthStateSection';
 
 type Props = QueryEditorProps<ScomDataSource, MyQuery, ScomDataSourceOptions>;
 
@@ -18,27 +20,27 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
     <DsProvider datasource={datasource} query={query} onChange={onChange} onRunQuery={onRunQuery}>
       <div className="container">
         <div className="categoriesContainer">
-          {buildCategoryButton('Performance', 'performance', 'chart-line')}
-          {buildCategoryButton('Alerts', 'alerts', 'bell')}
-          {buildCategoryButton('Health State', 'state', 'heart')}
+          <Button variant={type === type ? 'primary' : 'secondary'} icon="chart-line" onClick={() => onCategoryClick('performance')}>
+            Performance
+          </Button>
+          <Button variant={type === type ? 'primary' : 'secondary'} icon="bell" onClick={() => onCategoryClick('alerts')}>
+            Alerts
+          </Button>
+          <Button variant={type === type ? 'primary' : 'secondary'} icon="heart" onClick={() => onCategoryClick('state')}>
+            Health State
+          </Button>
         </div>
         {
           type === 'performance' && (
             <PerformanceSection />
           )
         }
-        {/* {
-          category === 'alerts' && <AlertsSection query={query} onChange={onChange} onRunQuery={onRunQuery} />
-        } */}
-        {/* {category === 'healthState' && (
-          <HealthStateSection
-            query={query}
-            datasource={datasource}
-            onChange={onChange}
-            onRunQuery={onRunQuery}
-            groupsData={groupsData}
-          />
-        )} */}
+        {
+          type === 'alerts' && <AlertsSection />
+        }
+        {
+          type === 'state' && <HealthStateSection />
+        }
       </div>
     </DsProvider>
   );

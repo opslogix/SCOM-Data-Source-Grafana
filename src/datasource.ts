@@ -1,15 +1,15 @@
-import { CoreApp, DataSourceInstanceSettings } from '@grafana/data';
+import { DataSourceInstanceSettings } from '@grafana/data';
 import { DataSourceWithBackend } from '@grafana/runtime';
-import { DEFAULT_QUERY, MyQuery, ScomDataSourceOptions } from './types';
+import { MyQuery, ScomDataSourceOptions } from './types';
 
 export class ScomDataSource extends DataSourceWithBackend<MyQuery, ScomDataSourceOptions> {
   constructor(instanceSettings: DataSourceInstanceSettings<ScomDataSourceOptions>) {
     super(instanceSettings);
   }
 
-  getDefaultQuery(_: CoreApp): Partial<MyQuery> {
-    return DEFAULT_QUERY;
-  }
+  // getDefaultQuery(_: CoreApp): Partial<MyQuery> {
+  //   return DEFAULT_QUERY;
+  // }
 
   // * Returns options for variable use. Without this it gives error?
   async metricFindQuery(query: MyQuery, options?: any) {

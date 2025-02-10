@@ -121,6 +121,10 @@ func (d *ScomDatasource) handleQuery(query backend.DataQuery) (data.Frames, erro
 		return nil, err
 	}
 
+	if qm.Type == "" {
+		return nil, nil
+	}
+
 	type fetchHandler func() (data.Frames, error)
 	fetchMap := map[string]fetchHandler{
 		"performance": func() (data.Frames, error) {
@@ -133,7 +137,7 @@ func (d *ScomDatasource) handleQuery(query backend.DataQuery) (data.Frames, erro
 			if err != nil {
 				return nil, err
 			}
-			return d.buildPerformanceFrame(performanceData), nil
+			return d.buildPerformanceFrame(performanceData, qm.Counters[0].CounterName+" "+qm.Instances[0].DisplayName), nil
 		},
 		"alerts": func() (data.Frames, error) {
 			criteria := "Severity = 2 and ResolutionState = 0"
@@ -150,34 +154,27 @@ func (d *ScomDatasource) handleQuery(query backend.DataQuery) (data.Frames, erro
 			return d.buildAlertsFrame(alerts), nil
 		},
 		"state": func() (data.Frames, error) {
-			var states []models.StateDataRow
 
-			states, err := d.client.GetStateData("", "", nil, qm.Criteria)
+			if len(qm.Instances) > 0 {
+				states, err := d.client.GetHealthStateForObjects(qm.Instances)
+				if err != nil {
+					return nil, err
+				}
 
-			// healthStates, err := d.client.GetMonitoringData(qm.HealthStateObjectIds)
-			if err != nil {
-				return nil, err
+				return d.buildHealthStateFrame(states, qm.Instances), nil
 			}
 
-			var objectIds []string
-			for _, state := range states {
-				objectIds = append(objectIds, state.ID)
+			if len(qm.Groups) > 0 && len(qm.Classes) > 0 {
+				states, err := d.client.GetStateData(qm.Groups[0].ID, qm.Classes[0].ID)
+				if err != nil {
+					return nil, err
+				}
+
+				return d.buildHealthStateGroupFrame(states), nil
 			}
 
-			// objectData, err := d.client.GetObjects(objectIds)
-			if err != nil {
-				return nil, err
-			}
 			return nil, nil
-			// return d.buildHealthStateFrame(healthStates, objectData), nil
 		},
-		// "healthStateGroup": func() (data.Frames, error) {
-		// 	healthStateGroup, err := d.client.GetHealthStateGroup(qm.HealthStateGroupId, qm.HealthStateClassId)
-		// 	if err != nil {
-		// 		return nil, err
-		// 	}
-		// 	return d.buildHealthStateGroupFrame(healthStateGroup), nil
-		// },
 	}
 
 	if handler, exists := fetchMap[qm.Type]; exists {
@@ -187,8 +184,11 @@ func (d *ScomDatasource) handleQuery(query backend.DataQuery) (data.Frames, erro
 	return nil, fmt.Errorf("unexpected value of Type: %s", qm.Type)
 }
 
-func (d *ScomDatasource) buildPerformanceFrame(performanceData []models.PerformanceResponse) data.Frames {
-	frame := data.NewFrame("performanceData")
+func (d *ScomDatasource) buildPerformanceFrame(performanceData []models.PerformanceResponse, name string) data.Frames {
+	if name == "" {
+		name = "Performance"
+	}
+	frame := data.NewFrame(name)
 
 	// Define field structure
 	timeField := data.NewField("Time", nil, []time.Time{})
@@ -197,7 +197,6 @@ func (d *ScomDatasource) buildPerformanceFrame(performanceData []models.Performa
 	objectDisplayNameField := data.NewField("Object display name", nil, []string{})
 	objectPathField := data.NewField("Object paths", nil, []string{})
 	objectFullNameField := data.NewField("Object full name", nil, []string{})
-
 	// Process each performance data entry
 	for _, entry := range performanceData {
 		for _, dataset := range entry.Datasets {
@@ -232,7 +231,6 @@ func (d *ScomDatasource) buildPerformanceFrame(performanceData []models.Performa
 
 	// Append fields to the frame
 	frame.Fields = append(frame.Fields, timeField, valueField, objectIdField, objectDisplayNameField, objectPathField, objectFullNameField)
-
 	return data.Frames{frame}
 }
 
@@ -275,12 +273,6 @@ func (d *ScomDatasource) buildAlertsFrame(alerts models.ScomAlert) data.Frames {
 
 	return data.Frames{frame}
 }
-
-// func (d *ScomDatasource) buildHealthStateFrame(states []models.StateDataRow) data.Frames {
-// 	frame := data.NewFrame("states")
-
-// 	return data.Frames{frame}
-// }
 
 func (d *ScomDatasource) buildHealthStateFrame(healthStates []models.MonitoringDataResponse, objectData []models.MonitoringObject) data.Frames {
 	frame := data.NewFrame("states")
@@ -385,7 +377,7 @@ func (d *ScomDatasource) CallResource(ctx context.Context, req *backend.CallReso
 			return d.client.GetGroups(query.Get("groupQueryCriteria"))
 		},
 		"getObjectsByGroup": func() (interface{}, error) {
-			return d.client.GetObjectsByGroup(query.Get("groupId"), query.Get("classIdGroup"))
+			return d.client.GetStateData(query.Get("groupId"), query.Get("classIdGroup"))
 		},
 	}
 

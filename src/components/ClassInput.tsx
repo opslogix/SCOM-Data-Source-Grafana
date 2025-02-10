@@ -67,5 +67,4 @@ export default function ClassInput({ onSelect, placeholder, defaultValue, dataso
       )}
     </div>
   );
-
 }

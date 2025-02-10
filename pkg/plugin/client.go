@@ -130,26 +130,42 @@ func (c *ScomClient) GetAlerts(criteria string) (models.ScomAlert, error) {
 	return result, err
 }
 
-// https://learn.microsoft.com/en-us/rest/api/operationsmanager/data/retrieve-state-data?tabs=HTTP
-func (c *ScomClient) GetStateData(classId string, groupId string, objectIds []string, criteria string) ([]models.StateDataRow, error) {
-	//Either classId or groupId should be provided
+func (c *ScomClient) GetHealthStateForObjects(objects []models.MonitoringObject) ([]models.MonitoringDataResponse, error) {
 
-	//ObjectIds is probably an array of strings?
-	body := models.StateDataRequestBody{
-		ClassID:        classId,
-		GroupID:        groupId,
-		ObjectIds:      objectIds,
-		Criteria:       criteria,
-		DisplayColumns: []string{"healthstate", "displayname", "path", "maintenancemode"},
+	var states []models.MonitoringDataResponse
+
+	for _, object := range objects {
+		state, err := requestToType[models.MonitoringDataResponse](c, "GET", "/OperationsManager/data/monitoring/"+object.ID, nil)
+		if err != nil {
+			return states, err
+		}
+
+		states = append(states, state)
 	}
 
-	result, err := requestToType[models.StateDataResponse](c, "POST", "/OperationsManager/data/state", body)
-	if err != nil {
-		return []models.StateDataRow{}, err
-	}
-
-	return result.Rows, nil
+	return states, nil
 }
+
+// // https://learn.microsoft.com/en-us/rest/api/operationsmanager/data/retrieve-state-data?tabs=HTTP
+// func (c *ScomClient) GetStateData(classId string, groupId string, objectIds []string, criteria string) ([]models.StateDataRow, error) {
+// 	//Either classId or groupId should be provided
+
+// 	//ObjectIds is probably an array of strings?
+// 	body := models.StateDataRequestBody{
+// 		ClassID:        classId,
+// 		GroupID:        groupId,
+// 		ObjectIds:      objectIds,
+// 		Criteria:       criteria,
+// 		DisplayColumns: []string{"healthstate", "displayname", "path", "maintenancemode"},
+// 	}
+
+// 	result, err := requestToType[models.StateDataResponse](c, "POST", "/OperationsManager/data/state", body)
+// 	if err != nil {
+// 		return []models.StateDataRow{}, err
+// 	}
+
+// 	return result.Rows, nil
+// }
 
 // https://learn.microsoft.com/en-us/rest/api/operationsmanager/data/retrieve-monitoring-data?tabs=HTTP
 func (c *ScomClient) GetMonitoringData(ids []string) ([]models.MonitoringDataResponse, error) {
@@ -183,16 +199,16 @@ func (c *ScomClient) GetPerformanceData(duration int, instances []models.Monitor
 
 	for _, instance := range instances {
 		requestBody := models.ScomPerformanceRequest{
-			Duration:            duration,
-			ID:                  instance.ID,
-			PerformanceCounters: counters,
-			// PerformanceCounters: []interface{}{
-			// 	map[string]interface{}{
-			// 		"countername":  counterName,
-			// 		"objectname":   counterObjectName,
-			// 		"instancename": counterInstanceName,
-			// 	},
-			// },
+			Duration: duration,
+			ID:       instance.ID,
+			// PerformanceCounters: counters,
+			PerformanceCounters: []interface{}{
+				map[string]interface{}{
+					"countername":  counters[0].CounterName,
+					"objectname":   counters[0].ObjectName,
+					"instancename": counters[0].InstanceName,
+				},
+			},
 		}
 
 		performanceData, err := requestToType[models.PerformanceResponse](c, "POST", "/OperationsManager/data/performance", requestBody)
@@ -212,15 +228,15 @@ func (c *ScomClient) GetPerformanceData(duration int, instances []models.Monitor
 	return performanceDataArray, nil
 }
 
-func (c *ScomClient) GetPerformanceCounters(objectId string) (models.PerformanceCounterData, error) {
+func (c *ScomClient) GetPerformanceCounters(objectId string) ([]models.PerformanceCounter, error) {
 
 	// models.PerformanceCounterData
-	counters, err := requestToType[models.PerformanceCounterData](c, "GET", "/OperationsManager/data/performanceCounters/"+objectId, nil)
+	counters, err := requestToType[models.PerformanceCounterResponse](c, "GET", "/OperationsManager/data/performanceCounters/"+objectId, nil)
 	if err != nil {
-		return models.PerformanceCounterData{}, err
+		return []models.PerformanceCounter{}, err
 	}
 
-	return counters, nil
+	return counters.Rows, nil
 }
 
 func (c *ScomClient) GetClassesByDisplayName(query string) ([]models.MonitoringClass, error) {
@@ -234,6 +250,7 @@ func (c *ScomClient) GetClassesByDisplayName(query string) ([]models.MonitoringC
 	return classes.ScopeDatas, nil
 }
 
+// https://learn.microsoft.com/en-us/rest/api/operationsmanager/data/retrieve-group-data?tabs=HTTP
 func (c *ScomClient) GetGroups(query string) ([]models.ScomGroup, error) {
 	criteria := "DisplayName LIKE '%%'"
 
@@ -270,12 +287,12 @@ func (c *ScomClient) GetObjectsByClass(className string) ([]models.MonitoringObj
 	return objects.Rows, nil
 }
 
-func (c *ScomClient) GetHealthStateGroup(groupId, classId string) (models.StateDataResponse, error) {
+func (c *ScomClient) GetStateData(groupId, classId string) (models.StateDataResponse, error) {
 
 	body := models.StateDataRequestBody{
 		ClassID:        classId,
 		GroupID:        groupId,
-		ObjectIds:      []string{},
+		ObjectIds:      map[string]interface{}{},
 		Criteria:       "",
 		DisplayColumns: []string{"healthstate", "displayname", "path", "maintenancemode"},
 	}
@@ -288,19 +305,19 @@ func (c *ScomClient) GetHealthStateGroup(groupId, classId string) (models.StateD
 	return group, nil
 }
 
-func (c *ScomClient) GetObjectsByGroup(groupId, classId string) (models.StateDataResponse, error) {
-	body := models.StateDataRequestBody{
-		ClassID:        classId,
-		GroupID:        groupId,
-		ObjectIds:      []string{},
-		Criteria:       "",
-		DisplayColumns: []string{"healthstate", "displayname", "path", "maintenancemode"},
-	}
+// func (c *ScomClient) GetObjectsByGroup(groupId, classId string) (models.StateDataResponse, error) {
+// 	body := models.StateDataRequestBody{
+// 		ClassID:        classId,
+// 		GroupID:        groupId,
+// 		ObjectIds:      map[string]interface{}{},
+// 		Criteria:       "",
+// 		DisplayColumns: []string{"healthstate", "displayname", "path", "maintenancemode"},
+// 	}
 
-	objects, err := requestToType[models.StateDataResponse](c, "POST", "/OperationsManager/data/state", body)
-	if err != nil {
-		return models.StateDataResponse{}, err
-	}
+// 	objects, err := requestToType[models.StateDataResponse](c, "POST", "/OperationsManager/data/state", body)
+// 	if err != nil {
+// 		return models.StateDataResponse{}, err
+// 	}
 
-	return objects, nil
-}
+// 	return objects, nil
+// }
