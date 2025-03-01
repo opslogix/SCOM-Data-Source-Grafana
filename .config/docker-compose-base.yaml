@@ -4,11 +4,11 @@ services:
     container_name: 'opslogix-scompluginbyopslogix-datasource'
 
     build:
-      context: ./
+      context: .
       args:
         grafana_image: ${GRAFANA_IMAGE:-grafana-enterprise}
-        grafana_version: ${GRAFANA_VERSION:-11.5.1}
-        development: ${DEVELOPMENT:-true}
+        grafana_version: ${GRAFANA_VERSION:-11.5.2}
+        development: ${DEVELOPMENT:-false}
         anonymous_auth_enabled: ${ANONYMOUS_AUTH_ENABLED:-true}
     ports:
       - 3000:3000/tcp
