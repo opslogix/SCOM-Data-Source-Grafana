@@ -45,13 +45,13 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
     </DsProvider>
   );
 
-  function buildCategoryButton(name: string, type: "performance" | "alerts" | "state", icon: any) {
-    return (
-      <Button variant={type === type ? 'primary' : 'secondary'} icon={icon} onClick={() => onCategoryClick(type)}>
-        {name}
-      </Button>
-    );
-  }
+  // function buildCategoryButton(name: string, type: "performance" | "alerts" | "state", icon: any) {
+  //   return (
+  //     <Button variant={type === type ? 'primary' : 'secondary'} icon={icon} onClick={() => onCategoryClick(type)}>
+  //       {name}
+  //     </Button>
+  //   );
+  // }
 
   function onCategoryClick(type: "performance" | "alerts" | "state") {
     // We send category value to backend to tell it how to structure and render the dashboard data.

@@ -50,7 +50,7 @@ jobs:
 
       - name: Check for backend
         id: check-for-backend
-        run: |
+        run: |useEffect
           if [ -f "Magefile.go" ]
           then
             echo "has-backend=true" >> $GITHUB_OUTPUT

@@ -1,5 +1,5 @@
 import { AsyncSelect, Button, Field, MultiSelect, RadioButtonList, Select } from '@grafana/ui';
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { MonitoringClass, MonitoringGroup, MonitoringObject } from 'types';
 import { useDs } from './providers/ds.provider';
 
@@ -11,7 +11,7 @@ export default function HealthStateSection() {
     const GROUP = 'group';
     const [selectedCategory, setSelectedCategory] = useState<string>(SINGLE_CLASS);
 
-    const [classes, setClasses] = useState<MonitoringClass[]>([]);
+    // const [classes, setClasses] = useState<MonitoringClass[]>([]);
 
     // useEffect(() => {
     //     const c = async () => {
@@ -26,7 +26,7 @@ export default function HealthStateSection() {
 
     const [groups, setGroups] = useState<MonitoringGroup[]>([]);
     const [selectedGroup, setSelectedGroup] = useState<MonitoringGroup | undefined | null>();
-    const [selectedGroupClass, setSelectedGroupClass] = useState<MonitoringClass | undefined | null>();
+    //const [selectedGroupClass, setSelectedGroupClass] = useState<MonitoringClass | undefined | null>();
 
     const onClassSelect = async (v?: MonitoringClass | undefined) => {
         if (v === undefined) {
