@@ -1,6 +1,6 @@
 {
   "name": "scom-plugin-by-opslogix",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "System center operations manager scom datasource plugin by opslogix",
   "scripts": {
     "build": "webpack -c ./.config/webpack/webpack.config.ts --env production",
