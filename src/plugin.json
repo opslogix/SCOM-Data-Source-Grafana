@@ -8,6 +8,7 @@
   "alerting": true,
   "executable": "gpx_scom_plugin_by_opslogix",
   "info": {
+    "rootUrls":["http://loclahost"],
     "description": "",
     "author": {
       "name": "Opslogix"
