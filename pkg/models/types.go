@@ -1,15 +1,43 @@
 package models
 
-//Query between frontend and backend
-type QueryModel struct {
-	//Type of data queries. (alerts, performance, state)
-	Type      string               `json:"type"`
-	Criteria  string               `json:"criteria"`
+// Base struct for all queries
+type ScomQuery struct {
+	Type string `json:"type"`
+}
+
+// StateQuery struct
+type StateQuery struct {
+	ScomQuery
+	Classes   []MonitoringClass  `json:"classes"`
+	Groups    []ScomGroup        `json:"groups"`
+	Instances []MonitoringObject `json:"instances"`
+}
+
+// AlertQuery struct
+type AlertQuery struct {
+	ScomQuery
+	Criteria string `json:"criteria"`
+}
+
+// PerformanceQuery struct
+type PerformanceQuery struct {
+	ScomQuery
 	Classes   []MonitoringClass    `json:"classes"`
-	Instances []MonitoringObject   `json:"instances"`
 	Counters  []PerformanceCounter `json:"counters"`
 	Groups    []ScomGroup          `json:"groups"`
+	Instances []MonitoringObject   `json:"instances"`
 }
+
+//Query between frontend and backend
+// type QueryModel struct {
+// 	//Type of data queries. (alerts, performance, state)
+// 	Type      string               `json:"type"`
+// 	Criteria  string               `json:"criteria"`
+// 	Classes   []MonitoringClass    `json:"classes"`
+// 	Instances []MonitoringObject   `json:"instances"`
+// 	Counters  []PerformanceCounter `json:"counters"`
+// 	Groups    []ScomGroup          `json:"groups"`
+// }
 
 type PerformanceCounter struct {
 	ObjectName   string `json:"objectName"`
@@ -55,8 +83,8 @@ type StateDataRow struct {
 }
 
 type StateDataResponse struct {
-	TableColumns []interface{}  `json:"tableColumns"`
-	Rows         []StateDataRow `json:"rows"`
+	TableColumns []interface{}      `json:"tableColumns"`
+	Rows         []MonitoringObject `json:"rows"`
 }
 
 type ChildNodeData struct {
@@ -171,11 +199,13 @@ type GroupResponse struct {
 }
 
 type MonitoringObject struct {
-	ID          string `json:"id"`
-	DisplayName string `json:"displayName"`
-	ClassName   string `json:"className"`
-	Path        string `json:"path"`
-	FullName    string `json:"fullName"`
+	ID              string `json:"id"`
+	DisplayName     string `json:"displayName"`
+	ClassName       string `json:"className"`
+	Path            string `json:"path"`
+	FullName        string `json:"fullName"`
+	MaintenanceMode string `json:"maintenancemode"`
+	HealthState     string `json:"healthstate"`
 }
 
 type ScomObjectResponse struct {
@@ -188,6 +218,16 @@ type ScomObjectResponse struct {
 // 	Path        string `json:"path"`
 // 	FullName    string `json:"fullname"`
 // }
+
+type ClassesForObjectResponse struct {
+	TableColumns []struct {
+		Field  string      `json:"field"`
+		Header string      `json:"header"`
+		Type   interface{} `json:"type"` // using interface{} since type can be null/unknown
+		Hidden bool        `json:"hidden"`
+	} `json:"tableColumns"`
+	Rows []MonitoringClass `json:"rows"`
+}
 
 type ObjectByClassResponse struct {
 	TableColumns []struct {

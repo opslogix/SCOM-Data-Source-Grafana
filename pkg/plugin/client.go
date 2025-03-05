@@ -18,6 +18,8 @@ import (
 type ScomClient struct {
 	settings   *models.PluginSettings
 	httpClient *http.Client
+	tokens     AuthTokens
+	mu         sync.Mutex
 }
 
 // NewScomClient initializes a scom client with authentication middleware
@@ -28,25 +30,29 @@ func NewScomClient(httpOptions httpclient.Options, settings *models.PluginSettin
 		return nil, fmt.Errorf("failed to authenticate: %v", err)
 	}
 
+	client := &ScomClient{
+		settings: settings,
+		tokens:   tokens,
+	}
+
 	httpOptions.ConfigureTLSConfig = func(opts httpclient.Options, tlsConfig *tls.Config) {
 		tlsConfig.InsecureSkipVerify = settings.IsSkipTlsVerifyCheck
 	}
 
-	httpOptions.Middlewares = append(httpOptions.Middlewares, httpclient.MiddlewareFunc(AuthMiddleware(tokens)))
+	httpOptions.Middlewares = append(httpOptions.Middlewares, httpclient.MiddlewareFunc(client.AuthMiddleware(tokens)))
 	httpOptions.Timeouts.Timeout = time.Second * 10
 
-	client, err := httpclient.New(httpOptions)
+	httpClient, err := httpclient.New(httpOptions)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP client: %v", err)
 	}
 
-	return &ScomClient{
-		settings:   settings,
-		httpClient: client,
-	}, nil
+	client.httpClient = httpClient
+
+	return client, nil
 }
 
-func AuthMiddleware(tokens AuthTokens) httpclient.MiddlewareFunc {
+func (c *ScomClient) AuthMiddleware(tokens AuthTokens) httpclient.MiddlewareFunc {
 	return httpclient.MiddlewareFunc(func(opts httpclient.Options, next http.RoundTripper) http.RoundTripper {
 		return httpclient.RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
 			req.Header.Set("Authorization", "Basic "+tokens.AuthToken)
@@ -54,7 +60,36 @@ func AuthMiddleware(tokens AuthTokens) httpclient.MiddlewareFunc {
 			req.Header.Set("Cookie", tokens.SessionID)
 			req.Header.Set("Content-Type", "application/json")
 
-			return next.RoundTrip(req)
+			resp, err := next.RoundTrip(req)
+
+			if err != nil {
+				return resp, err
+			}
+
+			//440: unexpected status code 440: {"errorMessage":"Your session with the Web console server expired.","errorTrace":""}
+			if resp.StatusCode == 440 {
+				c.mu.Lock()
+				defer c.mu.Unlock()
+
+				// Re-authenticate if another goroutine hasn't already done it
+				newTokens, err := Authenticate(c.settings.Url, c.settings.UserName, c.settings.Secrets.Password, c.settings.IsSkipTlsVerifyCheck)
+				if err != nil {
+					return resp, fmt.Errorf("failed to refresh authentication tokens: %v", err)
+				}
+
+				c.tokens = newTokens // Update tokens
+
+				// Retry request with new tokens
+				req2 := req.Clone(req.Context())
+				req2.Header.Set("Authorization", "Basic "+tokens.AuthToken)
+				req2.Header.Set("SCOM-CSRF-TOKEN", tokens.CSRFToken)
+				req2.Header.Set("Cookie", tokens.SessionID)
+				req2.Header.Set("Content-Type", "application/json")
+
+				return next.RoundTrip(req2)
+			}
+
+			return resp, nil
 		})
 	})
 }
@@ -146,27 +181,6 @@ func (c *ScomClient) GetHealthStateForObjects(objects []models.MonitoringObject)
 	return states, nil
 }
 
-// // https://learn.microsoft.com/en-us/rest/api/operationsmanager/data/retrieve-state-data?tabs=HTTP
-// func (c *ScomClient) GetStateData(classId string, groupId string, objectIds []string, criteria string) ([]models.StateDataRow, error) {
-// 	//Either classId or groupId should be provided
-
-// 	//ObjectIds is probably an array of strings?
-// 	body := models.StateDataRequestBody{
-// 		ClassID:        classId,
-// 		GroupID:        groupId,
-// 		ObjectIds:      objectIds,
-// 		Criteria:       criteria,
-// 		DisplayColumns: []string{"healthstate", "displayname", "path", "maintenancemode"},
-// 	}
-
-// 	result, err := requestToType[models.StateDataResponse](c, "POST", "/OperationsManager/data/state", body)
-// 	if err != nil {
-// 		return []models.StateDataRow{}, err
-// 	}
-
-// 	return result.Rows, nil
-// }
-
 // https://learn.microsoft.com/en-us/rest/api/operationsmanager/data/retrieve-monitoring-data?tabs=HTTP
 func (c *ScomClient) GetMonitoringData(ids []string) ([]models.MonitoringDataResponse, error) {
 	var (
@@ -250,6 +264,15 @@ func (c *ScomClient) GetClassesByDisplayName(query string) ([]models.MonitoringC
 	return classes.ScopeDatas, nil
 }
 
+func (c *ScomClient) GetClassesForObject(id string) ([]models.MonitoringClass, error) {
+	classes, err := requestToType[models.ClassesForObjectResponse](c, "GET", "/OperationsManager/data/classesForObject/"+id, nil)
+	if err != nil {
+		return []models.MonitoringClass{}, err
+	}
+
+	return classes.Rows, nil
+}
+
 // https://learn.microsoft.com/en-us/rest/api/operationsmanager/data/retrieve-group-data?tabs=HTTP
 func (c *ScomClient) GetGroups(query string) ([]models.ScomGroup, error) {
 	criteria := "DisplayName LIKE '%%'"
@@ -287,6 +310,7 @@ func (c *ScomClient) GetObjectsByClass(className string) ([]models.MonitoringObj
 	return objects.Rows, nil
 }
 
+// https://learn.microsoft.com/en-us/rest/api/operationsmanager/data/retrieve-state-data?tabs=HTTP
 func (c *ScomClient) GetStateData(groupId, classId string) (models.StateDataResponse, error) {
 
 	body := models.StateDataRequestBody{
@@ -304,20 +328,3 @@ func (c *ScomClient) GetStateData(groupId, classId string) (models.StateDataResp
 
 	return group, nil
 }
-
-// func (c *ScomClient) GetObjectsByGroup(groupId, classId string) (models.StateDataResponse, error) {
-// 	body := models.StateDataRequestBody{
-// 		ClassID:        classId,
-// 		GroupID:        groupId,
-// 		ObjectIds:      map[string]interface{}{},
-// 		Criteria:       "",
-// 		DisplayColumns: []string{"healthstate", "displayname", "path", "maintenancemode"},
-// 	}
-
-// 	objects, err := requestToType[models.StateDataResponse](c, "POST", "/OperationsManager/data/state", body)
-// 	if err != nil {
-// 		return models.StateDataResponse{}, err
-// 	}
-
-// 	return objects, nil
-// }

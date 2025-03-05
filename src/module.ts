@@ -1,10 +1,11 @@
 import { DataSourcePlugin } from '@grafana/data';
 import { ScomDataSource } from './datasource';
 import { ConfigEditor } from './components/ConfigEditor';
-import { QueryEditor } from './components/QueryEditor';
-import { MyQuery, ScomDataSourceOptions } from './types';
+import { QueryEditorLayout } from './components/QueryEditorLayout';
 
-export const plugin = new DataSourcePlugin<ScomDataSource, MyQuery, ScomDataSourceOptions>(ScomDataSource)
+import { ScomDataSourceOptions, ScomQuery } from './types';
+
+export const plugin = new DataSourcePlugin<ScomDataSource, ScomQuery, ScomDataSourceOptions>(ScomDataSource)
   .setConfigEditor(ConfigEditor)
-  .setQueryEditor(QueryEditor)
-  // .setVariableQueryEditor(VariableQueryEditor);
+  .setQueryEditor(QueryEditorLayout)
+// .setVariableQueryEditor(VariableQueryEditor);

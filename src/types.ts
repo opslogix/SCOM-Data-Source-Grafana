@@ -1,16 +1,31 @@
 import { DataSourceJsonData } from '@grafana/data';
 import { DataQuery } from '@grafana/schema';
 
-export interface MyQuery extends DataQuery {
-  type: 'performance' | 'alerts' | 'state',
-  classes?: MonitoringClass[],
-  instances?: MonitoringObject[],
-  counters?: PerformanceCounter[],
-  groups?: MonitoringGroup[],
-  criteria?: string
+export interface ScomQuery extends DataQuery {
+  type: 'state' | 'alerts' | 'performance'
 }
 
-export const DEFAULT_QUERY: Partial<MyQuery> = {
+export interface StateQuery extends ScomQuery {
+  type: 'state';
+  classes?: MonitoringClass[];
+  groups?: MonitoringGroup[];
+  instances?: MonitoringObject[];
+}
+
+export interface AlertQuery extends ScomQuery {
+  type: 'alerts';
+  criteria?: string;
+}
+
+export interface PerformanceQuery extends ScomQuery {
+  type: 'performance';
+  classes?: MonitoringClass[];
+  counters?: PerformanceCounter[];
+  groups?: MonitoringGroup[];
+  instances?: MonitoringObject[];
+}
+
+export const DEFAULT_QUERY: Partial<AlertQuery> = {
   type: 'alerts',
   criteria: 'Severity = 2 AND ResolutionState = 0'
 };
@@ -34,9 +49,9 @@ export interface SecureJsonData {
 
 // Data types.
 export interface PerformanceCounter {
-  objectname: string;
-  countername: string;
-  instancename: string;
+  objectName: string;
+  counterName: string;
+  instanceName: string;
 }
 
 export interface MonitoringClass {

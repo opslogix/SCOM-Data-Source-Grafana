@@ -1,62 +1,58 @@
-import React from 'react';
-import { Button } from '@grafana/ui';
-import { QueryEditorProps } from '@grafana/data';
-import { ScomDataSource } from '../datasource';
-import { ScomDataSourceOptions, MyQuery } from '../types';
+import React, { useState } from 'react';
+import { IconName, Tab, TabContent, TabsBar } from '@grafana/ui';
 import PerformanceSection from './PerformanceSection';
-import { DsProvider } from './providers/ds.provider';
+import { useDs } from './providers/ds.provider';
 import './Styles.css';
 import AlertsSection from './AlertsSection';
 import HealthStateSection from './HealthStateSection';
 
-type Props = QueryEditorProps<ScomDataSource, MyQuery, ScomDataSourceOptions>;
-
 // onRunQuery calls 'query' in the backend.
 // datasource calls 'CallResource' in the backend.
-export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) {
-  const { type } = query;
+export function QueryEditor() {
+
+  const { query } = useDs();
+
+  const [tabs, updateTabs] = useState([{
+    label: 'Performance',
+    active: query.type === 'performance',
+    icon: 'bolt' as IconName,
+    element: <PerformanceSection />
+  }, {
+    label: 'Alerts',
+    icon: 'bell' as IconName,
+    active: query.type === 'alerts',
+    element: <AlertsSection />
+  }, {
+    label: 'Health',
+    icon:'heart' as IconName,
+    active: query.type === 'state',
+    element: <HealthStateSection />
+  }])
+
+  const onChangeTab = (index: number) => {
+    updateTabs(tabs.map((tab, indx) => ({
+      ...tab,
+      active: index === indx
+    })));
+
+    //Set active query?
+    //Execute query?
+  }
 
   return (
-    <DsProvider datasource={datasource} query={query} onChange={onChange} onRunQuery={onRunQuery}>
-      <div className="container">
-        <div className="categoriesContainer">
-          <Button variant={type === type ? 'primary' : 'secondary'} icon="chart-line" onClick={() => onCategoryClick('performance')}>
-            Performance
-          </Button>
-          <Button variant={type === type ? 'primary' : 'secondary'} icon="bell" onClick={() => onCategoryClick('alerts')}>
-            Alerts
-          </Button>
-          <Button variant={type === type ? 'primary' : 'secondary'} icon="heart" onClick={() => onCategoryClick('state')}>
-            Health State
-          </Button>
-        </div>
+    <>
+      <TabsBar>
         {
-          type === 'performance' && (
-            <PerformanceSection />
-          )
+          tabs.map((tab, index) => (
+            <Tab key={index} label={tab.label} icon={tab.icon} active={tab.active} onChangeTab={() => onChangeTab(index)} />
+          ))
         }
+      </TabsBar>
+      <TabContent>
         {
-          type === 'alerts' && <AlertsSection />
+          tabs.find((tab) => tab.active)?.element
         }
-        {
-          type === 'state' && <HealthStateSection />
-        }
-      </div>
-    </DsProvider>
+      </TabContent>
+    </>
   );
-
-  function buildCategoryButton(name: string, type: "performance" | "alerts" | "state", icon: any) {
-    return (
-      <Button variant={type === type ? 'primary' : 'secondary'} icon={icon} onClick={() => onCategoryClick(type)}>
-        {name}
-      </Button>
-    );
-  }
-
-  function onCategoryClick(type: "performance" | "alerts" | "state") {
-    // We send category value to backend to tell it how to structure and render the dashboard data.
-    onChange({ ...query, type: type });
-
-    onRunQuery();
-  }
 }

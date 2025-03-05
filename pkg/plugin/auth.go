@@ -34,9 +34,6 @@ func Authenticate(baseUrl string, userName string, password string, IsSkipTlsVer
 		"Authorization": "Basic " + basicToken,
 	}
 
-	// TODO
-	// log.Println("********************* TLS VALUE !! > ", IsSkipTlsVerifyCheck)
-
 	// Create an HTTP client with custom TLS configuration to disable SSL certificate validation.
 	client := &http.Client{
 		Transport: &http.Transport{

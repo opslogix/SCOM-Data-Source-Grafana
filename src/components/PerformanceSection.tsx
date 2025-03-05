@@ -1,21 +1,77 @@
-import React, { useState } from 'react';
-import { AsyncSelect, Button, Field, RadioButtonList, Select } from '@grafana/ui';
+import React, { useEffect, useState } from 'react';
+import { AsyncSelect, Box, Button, Field, MultiSelect, RadioButtonGroup, Select, Stack } from '@grafana/ui';
 import { useDs } from './providers/ds.provider';
-import { MonitoringClass, MonitoringGroup, MonitoringObject, PerformanceCounter } from 'types';
+import { MonitoringClass, MonitoringGroup, MonitoringObject, PerformanceCounter, PerformanceQuery } from 'types';
+import { SelectableValue } from '@grafana/data';
 
 export default function PerformanceSection() {
 
-  const { getClasses, getMonitoringObjects, getPerformanceCounters, getPerformance, query } = useDs();
+  const { getClasses, getMonitoringObjects, getMonitoringGroups, getPerformanceCounters, getPerformance, query } = useDs();
+  const performanceQuery = query as PerformanceQuery;
 
-  const SINGLE_CLASS = 'singleClass';
-  const GROUP = 'group';
-  const [selectedRadioOption, setSelectedRadioOption] = useState(SINGLE_CLASS);
+  const options: SelectableValue[] = [{
+    label: 'Class',
+    value: 'class'
+  }, {
+    label: 'Group',
+    value: 'group'
+  }]
 
-  const [selectedClass, setSelectedClass] = useState<MonitoringClass | undefined | null>(query?.classes?.at(0));
-  const [selectedInstance, setSelectedInstance] = useState<MonitoringObject | undefined | null>(query?.instances?.at(0));
-  const [classInstances, setClassInstances] = useState<MonitoringObject[]>([]);
+  const [selectedRadioOption, setSelectedRadioOption] = useState<string>();
+
+  const [selectedClass, setSelectedClass] = useState<MonitoringClass | undefined | null>();
+  const [selectedClassInstances, setSelectedClassInstances] = useState<Array<SelectableValue<MonitoringObject>>>();
+  const [selectedPerformanceCounter, setSelectedPerformanceCounter] = useState<PerformanceCounter | undefined | null>();
+
+  const [selectedGroup, setSelectedGroup] = useState<MonitoringGroup | undefined | null>()
+  const [selectedGroupClass, setSelectedGroupClass] = useState<MonitoringClass | undefined | null>();
+  const [selectedGroupPerformanceCounter, setSelectedGroupPerformanceCounter] = useState<PerformanceCounter | undefined | null>();
   const [performanceCounters, setPerformanceCounters] = useState<PerformanceCounter[]>([]);
-  const [selectedPerformanceCounter, setSelectedPerformanceCounter] = useState<PerformanceCounter | undefined | null>(query?.counters?.at(0));
+  const [monitoringObjects, setMonitoringObjects] = useState<Array<SelectableValue<MonitoringObject>>>();
+
+  const [monitoringGroups] = useState<Promise<MonitoringGroup[]>>(getMonitoringGroups);
+  const [monitoringClasses] = useState<Promise<MonitoringClass[]>>(getClasses(''))
+
+  useEffect(() => {
+    if (!performanceQuery) {
+      return;
+    }
+
+    const initialize = async () => {
+      console.log("INIT")
+
+      if (performanceQuery?.instances) {
+        setSelectedClassInstances(performanceQuery.instances)
+        setPerformanceCounters(await getPerformanceCounters(performanceQuery.instances[0].id))
+      }
+
+      if (performanceQuery?.groups && performanceQuery.groups.length > 0) {
+        //Group configuration
+        setSelectedGroup(performanceQuery.groups.at(0));
+        setSelectedGroupClass(performanceQuery.classes?.at(0));
+        setSelectedRadioOption("group");
+        setSelectedGroupPerformanceCounter(performanceQuery?.counters?.at(0));
+      } else {
+        //Class configuration
+        const selectedClass = performanceQuery.classes?.at(0)
+        if(selectedClass) {
+          setSelectedClass(selectedClass);
+          setMonitoringObjects(await getMonitoringObjects(selectedClass.className))
+        }
+        setSelectedRadioOption("class");
+
+        if(performanceQuery.instances && performanceQuery.instances.length > 0) {
+          setSelectedClassInstances(performanceQuery.instances)
+        }
+
+        setSelectedPerformanceCounter(performanceQuery?.counters?.at(0))
+      }
+    }
+
+    initialize();
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const onClassSelect = async (v?: MonitoringClass | undefined) => {
     if (v === undefined) {
@@ -23,18 +79,40 @@ export default function PerformanceSection() {
     }
 
     setSelectedClass(v);
-    setSelectedInstance(null);
-    setClassInstances(await getMonitoringObjects(v.className));
+    setSelectedClassInstances([]);
+    setSelectedPerformanceCounter(null);
+    setMonitoringObjects(await getMonitoringObjects(v.className));
   }
 
-  const onInstanceSelect = async (v?: MonitoringObject | undefined) => {
+  const onGroupClassSelect = async (v?: MonitoringClass) => {
+    if (v === undefined) {
+      return;
+    }
+
+    setSelectedGroupClass(v);
+    const classInstances = await getMonitoringObjects(v.className);
+    if (!classInstances || classInstances.length === 0) {
+      setPerformanceCounters([]);
+    } else {
+      setPerformanceCounters(await getPerformanceCounters(classInstances[0].id));
+    }
+  }
+
+  const onInstanceSelect = async (v?: MonitoringObject[] | undefined) => {
     if (v == null) {
       return;
     }
 
-    setSelectedInstance(v);
-    setPerformanceCounters(await getPerformanceCounters(v.id));
+    console.log(v);
+    setSelectedClassInstances(v);
+    if (v.length > 0) {
+      setPerformanceCounters(await getPerformanceCounters(v[0].id));
+    }
   }
+
+  useEffect(() => {
+    console.log('asda', monitoringObjects);
+  }, [monitoringObjects])
 
   const onPerformanceCounterSelect = async (v?: PerformanceCounter | undefined) => {
     if (v === undefined) {
@@ -42,235 +120,154 @@ export default function PerformanceSection() {
     }
 
     setSelectedPerformanceCounter(v);
-    //Execute query?
+  }
+
+  const onGroupPerformanceCounterSelect = async(v?: PerformanceCounter) => {
+    setSelectedGroupPerformanceCounter(v);
+  }
+  
+  const onGroupSelect = async (group?: MonitoringGroup | undefined) => {
+    if (group === undefined) {
+      return;
+    }
+    setSelectedGroup(group);
+  }
+
+  const onCategoryChange = async (category: string) => {
+    setSelectedRadioOption(category)
   }
 
   const loadClassOptions = async (inputValue: string): Promise<MonitoringClass[]> => {
-    return await getClasses(inputValue);
+    const classes = await monitoringClasses;
+
+    return classes.filter((monitoringClass) => monitoringClass.displayName.toLowerCase().includes(inputValue.toLowerCase()));
+  }
+
+  const loadGroupClassOptions = async (inputValue: string): Promise<MonitoringClass[]> => {
+    const classes = await monitoringClasses;
+    const groups = await monitoringGroups;
+    return classes.filter((monitoringClass) => !groups.some((group) => group.id === monitoringClass.id) && monitoringClass.displayName.toLowerCase().includes(inputValue.toLowerCase()));
+  }
+
+  const loadGroupOptions = async (inputValue: string): Promise<MonitoringGroup[]> => {
+    const groups = await monitoringGroups;
+    return groups.filter((g) => g.displayName.toLowerCase().includes(inputValue.toLowerCase()));
   }
 
   return (
     <>
-      <RadioButtonList
-        name="PerformanceCategory"
-        options={[
-          { label: 'Class', value: SINGLE_CLASS },
-          { label: 'Group', value: GROUP },
-        ]}
-        value={selectedRadioOption}
-        onChange={(option) => setSelectedRadioOption(option)}
-        className={'radioGroup'}
-      />
-      {
-        selectedRadioOption === SINGLE_CLASS ? (
-          <>
-              <AsyncSelect<MonitoringClass>
-                defaultOptions={true}
-                value={selectedClass}
-                getOptionLabel={(v) => v.displayName}
-                loadOptions={loadClassOptions}
-                onChange={(v) => onClassSelect(v as MonitoringClass)}
-                cacheOptions={true}
-              />
-              <Select<MonitoringObject>
-                disabled={selectedClass == null}
-                getOptionLabel={(v) => v.displayName}
-                value={selectedInstance}
-                options={classInstances}
-                onChange={(v) => onInstanceSelect(v as MonitoringObject)}
-              />
-
-            {
-              selectedInstance && (
-                  <Select<PerformanceCounter>
-                    disabled={selectedInstance == null}
-                    getOptionLabel={(v) => v.counterName}
-                    value={selectedPerformanceCounter}
-                    options={performanceCounters}
-                    onChange={(v) => onPerformanceCounterSelect(v as PerformanceCounter)} />
-
-              )
-            }
-            {
-              selectedPerformanceCounter && selectedInstance && selectedClass && (
-                <Field>
-                  <Button variant="secondary" icon="thumbs-up" onClick={() => getPerformance([selectedInstance], [selectedPerformanceCounter], [selectedClass])}>
-                    Apply
-                  </Button>
+      <Box padding={1} paddingTop={2}>
+        <RadioButtonGroup
+          options={options}
+          value={selectedRadioOption}
+          onChange={onCategoryChange} />
+      </Box>
+      <Box padding={1}>
+        <Stack direction={'column'} width={'auto'}>
+          {
+            selectedRadioOption === "class" && (
+              <>
+                <Field label="Class">
+                  <AsyncSelect<MonitoringClass>
+                    maxMenuHeight={200}
+                    defaultOptions={true}
+                    value={selectedClass}
+                    getOptionLabel={(v) => v.displayName}
+                    loadOptions={loadClassOptions}
+                    onChange={(v) => onClassSelect(v as MonitoringClass)}
+                    cacheOptions={true}
+                  />
                 </Field>
-              )
-            }
-          </>
-        ) : (
-          <>
-            <Select<MonitoringGroup>
-              getOptionLabel={(v) => v.displayName}
-              value={null}
-              options={[]}
-              onChange={() => { }}
-            />
-          </>
-        )
-      }
+                {
+                  selectedClass && (
+                    <Field label="Instance">
+                      <MultiSelect<MonitoringObject>
+                        maxMenuHeight={200}
+                        getOptionLabel={(v) => v.displayName}
+                        value={selectedClassInstances}
+                        options={monitoringObjects}
+                        onChange={(v) => onInstanceSelect(v as MonitoringObject[])}
+                      />
+                    </Field>
+                  )
+                }
+
+                {
+                  selectedClassInstances && (
+                    <Field label="Counter">
+                      <Select<PerformanceCounter>
+                        getOptionLabel={(v) => v.counterName}
+                        value={selectedPerformanceCounter}
+                        options={performanceCounters}
+                        onChange={(v) => onPerformanceCounterSelect(v as PerformanceCounter)} />
+                    </Field>
+                  )
+                }
+                {
+                  selectedPerformanceCounter && selectedClassInstances && selectedClass && (
+                    <Field>
+                      <Button variant="secondary" icon="thumbs-up" onClick={() => getPerformance([selectedPerformanceCounter], [selectedClass], selectedClassInstances as MonitoringObject[])}>
+                        Apply
+                      </Button>
+                    </Field>
+                  )
+                }
+              </>
+            )
+          }
+          {
+            selectedRadioOption === "group" && (
+              <>
+                <Field label="Group">
+                  <AsyncSelect<MonitoringGroup>
+                    defaultOptions={true}
+                    maxMenuHeight={200}
+                    getOptionLabel={(v) => v.displayName}
+                    value={selectedGroup}
+                    loadOptions={loadGroupOptions}
+                    onChange={(v) => onGroupSelect(v as MonitoringGroup)}
+                  />
+                </Field>
+                {
+                  selectedGroup && (
+                    <Field label="Class">
+                      <AsyncSelect<MonitoringClass>
+                        maxMenuHeight={200}
+                        defaultOptions={true}
+                        value={selectedGroupClass}
+                        getOptionLabel={(v) => v.displayName}
+                        loadOptions={loadGroupClassOptions}
+                        onChange={(v) => onGroupClassSelect(v as MonitoringClass)}
+                        cacheOptions={true}
+                      />
+                    </Field>
+                  )
+                }
+                {
+                  selectedGroup && selectedGroupClass && (
+                    <Field label="Counter">
+                      <Select<PerformanceCounter>
+                        getOptionLabel={(v) => v.counterName}
+                        value={selectedGroupPerformanceCounter}
+                        options={performanceCounters}
+                        onChange={(v) => onGroupPerformanceCounterSelect(v as PerformanceCounter)} />
+                    </Field>
+                  )
+                }
+                {
+                  selectedGroup && selectedGroupClass && selectedGroupPerformanceCounter && (
+                    <Field>
+                      <Button variant="secondary" icon="thumbs-up" onClick={() => getPerformance([selectedGroupPerformanceCounter], [selectedGroupClass], undefined, [selectedGroup])}>
+                        Apply
+                      </Button>
+                    </Field>
+                  )
+                }
+              </>
+            )
+          }
+        </Stack>
+      </Box>
     </>
   );
-  // async function onSelectClassGroup(selectedClass: ClassData) {
-  //   try {
-  //     // Fetch healthstate data, since that is the only way to know which objects belong to the chosen group and class.
-  //     const objects = await datasource.getResource('getObjectsByGroup', {
-  //       groupId: selectedGroup?.id,
-  //       classIdGroup: selectedClass?.id,
-  //     });
-
-  //     console.log(objects);
-  //     // Save all the object of the health states data, to later use them to fetch performance data for each id.
-  //     setObjectsGroup(objects?.rows);
-
-  //     // Since all objects have same counters, we take one of the object ids and fetch counters.
-  //     if (objects?.rows.length > 0) {
-  //       getCounters(objects?.rows[0]);
-  //     }
-  //   } catch (error) {
-  //     console.log('getObjects error: ', error);
-  //   }
-  // }
-  // async function onSelectClass(selectedClass: ClassData) {
-  //   setResetObjectsData(true);
-  //   setResetCounterObjectNamesData(true);
-  //   setResetCounterNamesData(true);
-  //   setResetCounterInstanceNamesData(true);
-  //   setSelectedClassDisplayName(selectedClass?.displayName);
-
-  //   try {
-  //     // Fetch objects based on the classname.
-  //     const objects = await instances(selectedClass?.className) //await datasource.getResource('getObjects', { selectedClassName: selectedClass?.className });
-  //     setObjectsData(objects || []);
-
-  //     // console.log(objects);
-  //     // // Since all objects have same counters, we take one of the object ids and fetch counters.
-  //     // if (objects?.length > 0) {
-  //     //   getCounters(objects[0]);
-  //     // }
-  //   } catch (error) {
-  //     console.log('getObjects error: ', error);
-  //   }
-  // }
-
-
-
-  // async function getCounters(selectedObject: ObjectData) {
-  //   setResetObjectsData(false);
-  //   setResetCounterObjectNamesData(false);
-  //   setResetCounterNamesData(false);
-  //   setResetCounterInstanceNamesData(false);
-
-  //   try {
-  //     // Fetch counters by class instances id.
-  //     const counters = await datasource.getResource('getCounters', { performanceObjectId: selectedObject?.id });
-  //     setCountersData(counters?.rows);
-
-  //     // Set is used to have unique values.
-  //     const objectNamesSet = new Set<string>();
-
-  //     counters?.rows.forEach((item: CounterData) => {
-  //       objectNamesSet.add(item.objectname);
-  //     });
-
-  //     const objectNames = Array.from(objectNamesSet);
-
-  //     // Only counter object names are rendered. Based on this option we filter the other counter types.
-  //     setCounterObjectNamesData(objectNames);
-  //   } catch (error) {
-  //     console.log('getCounter error', error);
-  //   }
-  // }
-
-  // function onSelectCounterObjectName(objectName: string) {
-  //   // When user selected the counter object name, we can filter for -
-  //   // - counter name and counter instance name.
-  //   const counterNamesSet: Set<string> = new Set();
-  //   const counterInstanceNamesSet: Set<string> = new Set();
-
-  //   countersData.forEach((row) => {
-  //     if (row.objectname.includes(objectName)) {
-  //       counterNamesSet.add(row.countername);
-  //       counterInstanceNamesSet.add(row.instancename);
-  //     }
-  //   });
-
-  //   const uniqueCounterNames: string[] = Array.from(counterNamesSet);
-  //   const uniqueCounterInstanceNames: string[] = Array.from(counterInstanceNamesSet);
-  //   setSelectedCounterObjectName(objectName);
-  //   setCounterNamesData(uniqueCounterNames);
-  //   setCounterInstanceNamesData(uniqueCounterInstanceNames);
-
-  //   setResetCounterNamesData(true);
-  //   setResetCounterInstanceNamesData(true);
-  // }
-
-  // function onSelectCounterName(counterName: string) {
-  //   setSelectedCounterName(counterName);
-  //   setResetCounterNamesData(false);
-  // }
-
-  // function onSelectCounterInstanceName(counterInstanceName: string) {
-  //   setSelectedCounterInstanceName(counterInstanceName);
-  //   setResetCounterInstanceNamesData(false);
-  // }
-
-  // function onGetPerformanceData() {
-  //   let selectedObjectsArray: ObjectData[] = Array.from(checkedObjects);
-
-  //   // Value to display in the input, incase user edits after saving dashboard or switches category.
-  //   let selectedObjectInputValue = selectedObjectsArray[0]?.displayname;
-
-  //   if (selectedObjectsArray.length > 1) {
-  //     selectedObjectInputValue =
-  //       selectedObjectsArray[selectedObjectsArray.length - 1].displayname +
-  //       ' (+' +
-  //       (selectedObjectsArray.length - 1) +
-  //       ')';
-  //   }
-
-  //   // Empty counter fields.
-  //   if (!selectedCounterName || !selectedCounterObjectName || !selectedCounterInstanceName) {
-  //     return;
-  //   }
-
-  //   // If class instance input is empty - it's interpreted as fetching all class instances.
-  //   if (selectedObjectsArray.length === 0) {
-  //     selectedObjectsArray = objectsData;
-  //   }
-
-  //   // onChange({
-  //   //   ...query,
-  //   //   toFetch: 'performanceData',
-  //   //   performanceCounterName: selectedCounterName,
-  //   //   performanceCounterObjectName: selectedCounterObjectName,
-  //   //   performanceCounterInstanceName: selectedCounterInstanceName,
-  //   //   performanceObjects: selectedObjectsArray,
-  //   //   performanceClassDisplayName: selectedClassDisplayName,
-  //   //   performanceObjectDisplayName: selectedObjectInputValue,
-  //   // });
-
-  //   // onRunQuery();
-  // }
-
-  // function onGetGroupPerformanceData() {
-  //   // Empty counter fields.
-  //   if (!selectedCounterName || !selectedCounterObjectName || !selectedCounterInstanceName || !objectsGroup) {
-  //     return;
-  //   }
-
-  //   // onChange({
-  //   //   ...query,
-  //   //   toFetch: 'performanceDataGroup',
-  //   //   performanceGroupCounterName: selectedCounterName,
-  //   //   performanceGroupCounterObjectName: selectedCounterObjectName,
-  //   //   performanceGroupCounterInstanceName: selectedCounterInstanceName,
-  //   //   performanceObjects: objectsGroup,
-  //   // });
-
-  //   // onRunQuery();
-  // }
 }

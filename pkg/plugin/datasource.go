@@ -116,33 +116,26 @@ func (d *ScomDatasource) QueryData(ctx context.Context, req *backend.QueryDataRe
 // }
 
 func (d *ScomDatasource) handleQuery(query backend.DataQuery) (data.Frames, error) {
-	var qm models.QueryModel
-	if err := json.Unmarshal(query.JSON, &qm); err != nil {
-		return nil, err
+	// var qm models.QueryModel
+	// if err := json.Unmarshal(query.JSON, &qm); err != nil {
+	// 	return nil, err
+	// }
+
+	// if qm.Type == "" {
+	// 	return nil, nil
+	// }
+
+	scomQuery, err := ParseQuery(query.JSON)
+	if err != nil {
+		return nil, fmt.Errorf("unexpected value of Type: %s", err.Error())
 	}
 
-	if qm.Type == "" {
-		return nil, nil
-	}
-
-	type fetchHandler func() (data.Frames, error)
-	fetchMap := map[string]fetchHandler{
-		"performance": func() (data.Frames, error) {
-			if qm.Counters == nil || qm.Instances == nil {
-				return nil, fmt.Errorf("counters and Instances are required")
-			}
-
-			duration := int(query.TimeRange.Duration().Minutes())
-			performanceData, err := d.client.GetPerformanceData(duration, qm.Instances, qm.Counters)
-			if err != nil {
-				return nil, err
-			}
-			return d.buildPerformanceFrame(performanceData, qm.Counters[0].CounterName+" "+qm.Instances[0].DisplayName), nil
-		},
-		"alerts": func() (data.Frames, error) {
+	switch q := scomQuery.(type) {
+	case models.AlertQuery:
+		{
 			criteria := "Severity = 2 and ResolutionState = 0"
-			if qm.Criteria != "" {
-				trimmedCriteria := strings.TrimSpace(qm.Criteria)
+			if q.Criteria != "" {
+				trimmedCriteria := strings.TrimSpace(q.Criteria)
 				if len(trimmedCriteria) > 0 {
 					criteria = trimmedCriteria
 				}
@@ -152,54 +145,78 @@ func (d *ScomDatasource) handleQuery(query backend.DataQuery) (data.Frames, erro
 				return nil, err
 			}
 			return d.buildAlertsFrame(alerts), nil
-		},
-		"state": func() (data.Frames, error) {
+		}
+	case models.PerformanceQuery:
+		{
+			if q.Counters == nil {
+				return nil, fmt.Errorf("Counters are required")
+			}
 
-			if len(qm.Instances) > 0 {
-				states, err := d.client.GetHealthStateForObjects(qm.Instances)
+			if len(q.Instances) < 1 && len(q.Groups) < 1 {
+				return nil, fmt.Errorf("Instances or Groups is required")
+			}
+
+			duration := int(query.TimeRange.Duration().Minutes())
+
+			//Are we getting performance by group? Get all instances belonging to this group and class
+			if len(q.Groups) > 0 {
+				groupInstances, err := d.client.GetStateData(q.Groups[0].ID, q.Classes[0].ID)
 				if err != nil {
 					return nil, err
 				}
 
-				return d.buildHealthStateFrame(states, qm.Instances), nil
+				q.Instances = groupInstances.Rows
 			}
 
-			if len(qm.Groups) > 0 && len(qm.Classes) > 0 {
-				states, err := d.client.GetStateData(qm.Groups[0].ID, qm.Classes[0].ID)
+			performanceData, err := d.client.GetPerformanceData(duration, q.Instances, q.Counters)
+			if err != nil {
+				return nil, err
+			}
+			return d.buildPerformanceFrame(performanceData), nil
+		}
+	case models.StateQuery:
+		{
+			if len(q.Instances) > 0 {
+				states, err := d.client.GetHealthStateForObjects(q.Instances)
+				if err != nil {
+					return nil, err
+				}
+
+				return d.buildHealthStateFrame(states, q.Instances), nil
+			}
+
+			if len(q.Groups) > 0 && len(q.Classes) > 0 {
+				states, err := d.client.GetStateData(q.Groups[0].ID, q.Classes[0].ID)
 				if err != nil {
 					return nil, err
 				}
 
 				return d.buildHealthStateGroupFrame(states), nil
 			}
-
-			return nil, nil
-		},
+		}
 	}
 
-	if handler, exists := fetchMap[qm.Type]; exists {
-		return handler()
-	}
-
-	return nil, fmt.Errorf("unexpected value of Type: %s", qm.Type)
+	return nil, fmt.Errorf("unexpected value of Type")
 }
 
-func (d *ScomDatasource) buildPerformanceFrame(performanceData []models.PerformanceResponse, name string) data.Frames {
-	if name == "" {
-		name = "Performance"
-	}
-	frame := data.NewFrame(name)
+func (d *ScomDatasource) buildPerformanceFrame(performanceData []models.PerformanceResponse) data.Frames {
+	frames := data.Frames{}
 
-	// Define field structure
-	timeField := data.NewField("Time", nil, []time.Time{})
-	valueField := data.NewField("Value", nil, []float64{})
-	objectIdField := data.NewField("Object id", nil, []string{})
-	objectDisplayNameField := data.NewField("Object display name", nil, []string{})
-	objectPathField := data.NewField("Object paths", nil, []string{})
-	objectFullNameField := data.NewField("Object full name", nil, []string{})
-	// Process each performance data entry
 	for _, entry := range performanceData {
+		frameName := entry.ObjectDisplayName
+
+		frame := data.NewFrame(frameName)
+
+		// Define fields for the frame
+		timeField := data.NewField("Time", nil, []time.Time{})
+		valueField := data.NewField("Value", nil, []float64{})
+		objectIdField := data.NewField("Object id", nil, []string{})
+		objectDisplayNameField := data.NewField("Object display name", nil, []string{})
+		objectPathField := data.NewField("Object paths", nil, []string{})
+		objectFullNameField := data.NewField("Object full name", nil, []string{})
+
 		for _, dataset := range entry.Datasets {
+			// Sort timestamps to ensure order
 			keys := make([]string, 0, len(dataset.Data))
 			for key := range dataset.Data {
 				keys = append(keys, key)
@@ -209,13 +226,13 @@ func (d *ScomDatasource) buildPerformanceFrame(performanceData []models.Performa
 			for _, timeStr := range keys {
 				timeVal, err := time.Parse(time.RFC3339, timeStr)
 				if err != nil {
-					backend.ErrDataResponse(backend.StatusBadRequest, fmt.Sprintf("Error parsing time: %v", err))
+					backend.Logger.Error("Error parsing time", "error", err)
 					continue
 				}
 
 				value, ok := dataset.Data[timeStr].(float64)
 				if !ok {
-					backend.ErrDataResponse(backend.StatusBadRequest, "Invalid value type")
+					backend.Logger.Error("Invalid value type", "time", timeStr, "entry", entry.ObjectDisplayName)
 					continue
 				}
 
@@ -227,11 +244,16 @@ func (d *ScomDatasource) buildPerformanceFrame(performanceData []models.Performa
 				objectFullNameField.Append(entry.ObjectFullName)
 			}
 		}
+
+		// Add fields to the frame
+		frame.Fields = append(frame.Fields, timeField, valueField, objectIdField, objectDisplayNameField, objectPathField, objectFullNameField)
+		frame.SetMeta(&data.FrameMeta{PreferredVisualization: data.VisTypeGraph})
+
+		// Add the frame to the collection
+		frames = append(frames, frame)
 	}
 
-	// Append fields to the frame
-	frame.Fields = append(frame.Fields, timeField, valueField, objectIdField, objectDisplayNameField, objectPathField, objectFullNameField)
-	return data.Frames{frame}
+	return frames
 }
 
 func (d *ScomDatasource) buildAlertsFrame(alerts models.ScomAlert) data.Frames {
@@ -379,6 +401,9 @@ func (d *ScomDatasource) CallResource(ctx context.Context, req *backend.CallReso
 		"getObjectsByGroup": func() (interface{}, error) {
 			return d.client.GetStateData(query.Get("groupId"), query.Get("classIdGroup"))
 		},
+		"getClassesForObject": func() (interface{}, error) {
+			return d.client.GetClassesForObject(query.Get(("objectId")))
+		},
 	}
 
 	handler, exists := handlers[req.Path]
@@ -434,4 +459,35 @@ func (d *ScomDatasource) CheckHealth(_ context.Context, req *backend.CheckHealth
 		Status:  status,
 		Message: message,
 	}, nil
+}
+
+// Deserialize JSON into the correct query type based on "type" field
+func ParseQuery(jsonData []byte) (interface{}, error) {
+	var base models.ScomQuery
+	if err := json.Unmarshal(jsonData, &base); err != nil {
+		return nil, err
+	}
+
+	switch base.Type {
+	case "state":
+		var q models.StateQuery
+		if err := json.Unmarshal(jsonData, &q); err != nil {
+			return nil, err
+		}
+		return q, nil
+	case "alerts":
+		var q models.AlertQuery
+		if err := json.Unmarshal(jsonData, &q); err != nil {
+			return nil, err
+		}
+		return q, nil
+	case "performance":
+		var q models.PerformanceQuery
+		if err := json.Unmarshal(jsonData, &q); err != nil {
+			return nil, err
+		}
+		return q, nil
+	default:
+		return nil, fmt.Errorf("unknown query type: %s", base.Type)
+	}
 }
