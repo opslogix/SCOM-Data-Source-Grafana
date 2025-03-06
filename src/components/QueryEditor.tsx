@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { IconName, Tab, TabContent, TabsBar } from '@grafana/ui';
 import PerformanceSection from './PerformanceSection';
 import { useDs } from './providers/ds.provider';
-import './Styles.css';
 import AlertsSection from './AlertsSection';
 import HealthStateSection from './HealthStateSection';
 

@@ -17,20 +17,20 @@ export default function PerformanceSection() {
     value: 'group'
   }]
 
-  const [selectedRadioOption, setSelectedRadioOption] = useState<string>();
+  const [selectedCategory, setSelectedCategory] = useState<string>();
 
-  const [selectedClass, setSelectedClass] = useState<MonitoringClass | undefined | null>();
+  const [selectedClass, setSelectedClass] = useState<MonitoringClass>();
   const [selectedClassInstances, setSelectedClassInstances] = useState<Array<SelectableValue<MonitoringObject>>>();
-  const [selectedPerformanceCounter, setSelectedPerformanceCounter] = useState<PerformanceCounter | undefined | null>();
+  const [selectedPerformanceCounter, setSelectedPerformanceCounter] = useState<PerformanceCounter>();
 
-  const [selectedGroup, setSelectedGroup] = useState<MonitoringGroup | undefined | null>()
-  const [selectedGroupClass, setSelectedGroupClass] = useState<MonitoringClass | undefined | null>();
-  const [selectedGroupPerformanceCounter, setSelectedGroupPerformanceCounter] = useState<PerformanceCounter | undefined | null>();
+  const [selectedGroup, setSelectedGroup] = useState<MonitoringGroup>();
+  const [selectedGroupClass, setSelectedGroupClass] = useState<MonitoringClass>();
+  const [selectedGroupPerformanceCounter, setSelectedGroupPerformanceCounter] = useState<PerformanceCounter>();
   const [performanceCounters, setPerformanceCounters] = useState<PerformanceCounter[]>([]);
   const [monitoringObjects, setMonitoringObjects] = useState<Array<SelectableValue<MonitoringObject>>>();
 
   const [monitoringGroups] = useState<Promise<MonitoringGroup[]>>(getMonitoringGroups);
-  const [monitoringClasses] = useState<Promise<MonitoringClass[]>>(getClasses(''))
+  const [monitoringClasses] = useState<Promise<MonitoringClass[]>>(getClasses(''));
 
   useEffect(() => {
     if (!performanceQuery) {
@@ -38,8 +38,6 @@ export default function PerformanceSection() {
     }
 
     const initialize = async () => {
-      console.log("INIT")
-
       if (performanceQuery?.instances) {
         setSelectedClassInstances(performanceQuery.instances)
         setPerformanceCounters(await getPerformanceCounters(performanceQuery.instances[0].id))
@@ -49,7 +47,7 @@ export default function PerformanceSection() {
         //Group configuration
         setSelectedGroup(performanceQuery.groups.at(0));
         setSelectedGroupClass(performanceQuery.classes?.at(0));
-        setSelectedRadioOption("group");
+        setSelectedCategory("group");
         setSelectedGroupPerformanceCounter(performanceQuery?.counters?.at(0));
       } else {
         //Class configuration
@@ -58,7 +56,7 @@ export default function PerformanceSection() {
           setSelectedClass(selectedClass);
           setMonitoringObjects(await getMonitoringObjects(selectedClass.className))
         }
-        setSelectedRadioOption("class");
+        setSelectedCategory("class");
 
         if(performanceQuery.instances && performanceQuery.instances.length > 0) {
           setSelectedClassInstances(performanceQuery.instances)
@@ -80,7 +78,7 @@ export default function PerformanceSection() {
 
     setSelectedClass(v);
     setSelectedClassInstances([]);
-    setSelectedPerformanceCounter(null);
+    setSelectedPerformanceCounter(undefined);
     setMonitoringObjects(await getMonitoringObjects(v.className));
   }
 
@@ -103,16 +101,11 @@ export default function PerformanceSection() {
       return;
     }
 
-    console.log(v);
     setSelectedClassInstances(v);
     if (v.length > 0) {
       setPerformanceCounters(await getPerformanceCounters(v[0].id));
     }
   }
-
-  useEffect(() => {
-    console.log('asda', monitoringObjects);
-  }, [monitoringObjects])
 
   const onPerformanceCounterSelect = async (v?: PerformanceCounter | undefined) => {
     if (v === undefined) {
@@ -134,7 +127,7 @@ export default function PerformanceSection() {
   }
 
   const onCategoryChange = async (category: string) => {
-    setSelectedRadioOption(category)
+    setSelectedCategory(category)
   }
 
   const loadClassOptions = async (inputValue: string): Promise<MonitoringClass[]> => {
@@ -159,13 +152,13 @@ export default function PerformanceSection() {
       <Box padding={1} paddingTop={2}>
         <RadioButtonGroup
           options={options}
-          value={selectedRadioOption}
+          value={selectedCategory}
           onChange={onCategoryChange} />
       </Box>
       <Box padding={1}>
         <Stack direction={'column'} width={'auto'}>
           {
-            selectedRadioOption === "class" && (
+            selectedCategory === "class" && (
               <>
                 <Field label="Class">
                   <AsyncSelect<MonitoringClass>
@@ -216,7 +209,7 @@ export default function PerformanceSection() {
             )
           }
           {
-            selectedRadioOption === "group" && (
+            selectedCategory === "group" && (
               <>
                 <Field label="Group">
                   <AsyncSelect<MonitoringGroup>

@@ -339,6 +339,8 @@ func (d *ScomDatasource) buildHealthStateFrame(healthStates []models.MonitoringD
 		data.NewField("Path", nil, path),
 	)
 
+	frame.SetMeta(&data.FrameMeta{PreferredVisualization: data.VisTypeTable})
+
 	return data.Frames{frame}
 }
 
@@ -369,6 +371,8 @@ func (d *ScomDatasource) buildHealthStateGroupFrame(healthStateGroup models.Stat
 		data.NewField("Path", nil, paths),
 		data.NewField("Maintenance mode", nil, maintenanceModes),
 	)
+
+	frame.SetMeta(&data.FrameMeta{PreferredVisualization: data.VisTypeTable})
 
 	return data.Frames{frame}
 }

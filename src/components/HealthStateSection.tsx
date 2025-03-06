@@ -1,26 +1,57 @@
 import { AsyncSelect, Box, Button, Field, MultiSelect, RadioButtonGroup, Select, Stack } from '@grafana/ui';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { MonitoringClass, MonitoringGroup, MonitoringObject, StateQuery } from 'types';
 import { useDs } from './providers/ds.provider';
+import { SelectableValue } from '@grafana/data';
 
 export default function HealthStateSection() {
 
     const { query, getState, getStateByGroup, getClasses, getMonitoringObjects, getMonitoringGroups } = useDs();
     const stateQuery = query as StateQuery;
 
-    const SINGLE_CLASS = 'class';
-    const GROUP = 'group';
-    const [selectedCategory, setSelectedCategory] = useState<string>(SINGLE_CLASS);
+    const options: SelectableValue[] = [{
+        label: 'Class',
+        value: 'class'
+    }, {
+        label: 'Group',
+        value: 'group'
+    }]
+    const [selectedCategory, setSelectedCategory] = useState<string>();
 
-    const [selectedClass, setSelectedClass] = useState<MonitoringClass | undefined | null>(stateQuery?.classes?.at(0));
+    const [selectedClass, setSelectedClass] = useState<MonitoringClass>();
+    const [selectedGroupClass, setSelectedGroupClass] = useState<MonitoringClass>();
+
     const [classInstances, setClassInstances] = useState<MonitoringObject[]>([]);
     const [selectedInstances, setSelectedInstances] = useState<MonitoringObject[]>([]);
 
-    const [groups, setGroups] = useState<MonitoringGroup[]>([]);
-    const [selectedGroup, setSelectedGroup] = useState<MonitoringGroup | undefined | null>();
+    const [selectedGroup, setSelectedGroup] = useState<MonitoringGroup>();
+
+    const [monitoringGroups] = useState<Promise<MonitoringGroup[]>>(getMonitoringGroups);
+    const [monitoringClasses] = useState<Promise<MonitoringClass[]>>(getClasses(''));
+
+    useEffect(() => {
+        if (!stateQuery) {
+            return;
+        }
+
+        const initialize = async () => {
+            if (stateQuery.groups && stateQuery.groups.length > 0) {
+                setSelectedGroup(stateQuery.groups.at(0));
+                setSelectedCategory("group");
+            } else {
+                setSelectedCategory("class")
+            }
+
+            setSelectedClass(stateQuery?.classes?.at(0));
+        }
+
+        initialize();
+
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
 
     const onClassSelect = async (v?: MonitoringClass | undefined) => {
-        if (v === undefined) {
+        if (!v) {
             return;
         }
 
@@ -29,25 +60,42 @@ export default function HealthStateSection() {
         setClassInstances(await getMonitoringObjects(v.className));
     }
 
+    const onGroupClassSelect = async (v: MonitoringClass) => {
+        if (!v) {
+            return
+        }
+
+        setSelectedGroupClass(v);
+    }
+
     const onCategoryChange = async (option: string) => {
         setSelectedCategory(option)
-        setGroups(await getMonitoringGroups());
     }
 
     const loadClassOptions = async (inputValue: string): Promise<MonitoringClass[]> => {
-        return await getClasses(inputValue);
+        const classes = await monitoringClasses;
+
+        return classes.filter((monitoringClass) => monitoringClass.displayName.toLowerCase().includes(inputValue.toLowerCase()));
+    }
+
+    const loadGroupOptions = async (inputValue: string): Promise<MonitoringGroup[]> => {
+        const groups = await monitoringGroups;
+        return groups.filter((g) => g.displayName.toLowerCase().includes(inputValue.toLowerCase()));
+    }
+
+    const loadGroupClassOptions = async (inputValue: string): Promise<MonitoringClass[]> => {
+        const classes = await monitoringClasses;
+        const groups = await monitoringGroups;
+        return classes.filter((monitoringClass) => !groups.some((group) => group.id === monitoringClass.id) && monitoringClass.displayName.toLowerCase().includes(inputValue.toLowerCase()));
     }
 
     return (
         <>
             <Box padding={1} paddingTop={2}>
                 <RadioButtonGroup
-                    options={[
-                        { label: 'Class', value: SINGLE_CLASS },
-                        { label: 'Group', value: GROUP },
-                    ]}
+                    options={options}
                     value={selectedCategory}
-                    onChange={async (option) => await onCategoryChange(option)} />
+                    onChange={onCategoryChange} />
             </Box>
             <Box padding={1}>
                 <Stack direction={'column'} width={'auto'}>
@@ -56,7 +104,7 @@ export default function HealthStateSection() {
                             <>
                                 <Field label="Class">
                                     <AsyncSelect<MonitoringClass>
-                                        defaultOptions={true}
+                                        defaultOptions
                                         loadOptions={loadClassOptions}
                                         getOptionLabel={(v) => v.displayName}
                                         value={selectedClass}
@@ -82,8 +130,9 @@ export default function HealthStateSection() {
                         ) : (
                             <>
                                 <Field label="Groups">
-                                    <Select<MonitoringGroup>
-                                        options={groups}
+                                    <AsyncSelect<MonitoringGroup>
+                                        defaultOptions
+                                        loadOptions={loadGroupOptions}
                                         value={selectedGroup}
                                         getOptionLabel={(v) => v.displayName}
                                         onChange={(v) => setSelectedGroup(v as MonitoringGroup)}
@@ -91,16 +140,16 @@ export default function HealthStateSection() {
                                 </Field>
                                 <Field label="Class">
                                     <AsyncSelect<MonitoringClass>
-                                        defaultOptions={true}
-                                        loadOptions={loadClassOptions}
+                                        defaultOptions
+                                        loadOptions={loadGroupClassOptions}
                                         getOptionLabel={(v) => v.displayName}
-                                        value={selectedClass}
-                                        onChange={(v) => onClassSelect(v as MonitoringClass)}
+                                        value={selectedGroupClass}
+                                        onChange={(v) => onGroupClassSelect(v as MonitoringClass)}
                                     />
                                 </Field>
                                 {
-                                    selectedGroup && selectedClass && (
-                                        <Button variant="secondary" icon="search" onClick={() => getStateByGroup(selectedGroup, [selectedClass])}>
+                                    selectedGroup && selectedGroupClass && (
+                                        <Button variant="secondary" icon="search" onClick={() => getStateByGroup(selectedGroup, [selectedGroupClass])}>
                                             Search
                                         </Button>
                                     )

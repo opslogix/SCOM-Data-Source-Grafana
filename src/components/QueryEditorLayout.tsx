@@ -3,7 +3,6 @@ import { QueryEditorProps } from '@grafana/data';
 import { ScomDataSource } from '../datasource';
 import { ScomDataSourceOptions, ScomQuery } from '../types';
 import { DsProvider } from './providers/ds.provider';
-import './Styles.css';
 import { QueryEditor } from './QueryEditor';
 
 type Props = QueryEditorProps<ScomDataSource, ScomQuery, ScomDataSourceOptions>;
