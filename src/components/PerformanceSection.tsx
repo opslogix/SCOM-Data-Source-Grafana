@@ -177,6 +177,7 @@ export default function PerformanceSection() {
                       <MultiSelect<MonitoringObject>
                         maxMenuHeight={200}
                         getOptionLabel={(v) => v.displayName}
+                        getOptionValue={(v) => v.displayName}
                         value={selectedClassInstances}
                         options={monitoringObjects}
                         onChange={(v) => onInstanceSelect(v as MonitoringObject[])}

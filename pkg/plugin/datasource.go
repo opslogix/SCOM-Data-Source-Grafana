@@ -149,11 +149,11 @@ func (d *ScomDatasource) handleQuery(query backend.DataQuery) (data.Frames, erro
 	case models.PerformanceQuery:
 		{
 			if q.Counters == nil {
-				return nil, fmt.Errorf("Counters are required")
+				return nil, fmt.Errorf("counters are required")
 			}
 
 			if len(q.Instances) < 1 && len(q.Groups) < 1 {
-				return nil, fmt.Errorf("Instances or Groups is required")
+				return nil, fmt.Errorf("instances or Groups is required")
 			}
 
 			duration := int(query.TimeRange.Duration().Minutes())
