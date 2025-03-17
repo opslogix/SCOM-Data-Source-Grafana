@@ -116,6 +116,7 @@ export default function HealthStateSection() {
                                         options={classInstances}
                                         value={selectedInstances}
                                         getOptionLabel={(v) => v.displayName}
+                                        getOptionValue={(v) => v.displayName}
                                         onChange={(v) => setSelectedInstances(v as MonitoringObject[])} />
 
                                 </Field>
