@@ -39,7 +39,7 @@ func NewScomClient(httpOptions httpclient.Options, settings *models.PluginSettin
 		tlsConfig.InsecureSkipVerify = settings.IsSkipTlsVerifyCheck
 	}
 
-	httpOptions.Middlewares = append(httpOptions.Middlewares, httpclient.MiddlewareFunc(client.AuthMiddleware(tokens)))
+	httpOptions.Middlewares = append(httpOptions.Middlewares, httpclient.MiddlewareFunc(client.AuthMiddleware()))
 	httpOptions.Timeouts.Timeout = time.Second * 10
 
 	httpClient, err := httpclient.New(httpOptions)
@@ -52,12 +52,29 @@ func NewScomClient(httpOptions httpclient.Options, settings *models.PluginSettin
 	return client, nil
 }
 
-func (c *ScomClient) AuthMiddleware(tokens AuthTokens) httpclient.MiddlewareFunc {
+func (c *ScomClient) AuthMiddleware() httpclient.MiddlewareFunc {
 	return httpclient.MiddlewareFunc(func(opts httpclient.Options, next http.RoundTripper) http.RoundTripper {
 		return httpclient.RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
-			req.Header.Set("Authorization", "Basic "+tokens.AuthToken)
-			req.Header.Set("SCOM-CSRF-TOKEN", tokens.CSRFToken)
-			req.Header.Set("Cookie", tokens.SessionID)
+			var bodyBytes []byte
+			if req.Body != nil {
+				var err error
+				bodyBytes, err = io.ReadAll(req.Body)
+				if err != nil {
+					return nil, fmt.Errorf("failed to read request body: %v", err)
+				}
+				req.Body = io.NopCloser(bytes.NewReader(bodyBytes)) // Restore body for first request
+			}
+
+			// Lock while accessing tokens
+			c.mu.Lock()
+			authToken := c.tokens.AuthToken
+			csrfToken := c.tokens.CSRFToken
+			sessionID := c.tokens.SessionID
+			c.mu.Unlock()
+
+			req.Header.Set("Authorization", "Basic "+authToken)
+			req.Header.Set("SCOM-CSRF-TOKEN", csrfToken)
+			req.Header.Set("Cookie", sessionID)
 			req.Header.Set("Content-Type", "application/json")
 
 			resp, err := next.RoundTrip(req)
@@ -66,24 +83,27 @@ func (c *ScomClient) AuthMiddleware(tokens AuthTokens) httpclient.MiddlewareFunc
 				return resp, err
 			}
 
-			//440: unexpected status code 440: {"errorMessage":"Your session with the Web console server expired.","errorTrace":""}
 			if resp.StatusCode == 440 {
 				c.mu.Lock()
 				defer c.mu.Unlock()
 
-				// Re-authenticate if another goroutine hasn't already done it
-				newTokens, err := Authenticate(c.settings.Url, c.settings.UserName, c.settings.Secrets.Password, c.settings.IsSkipTlsVerifyCheck)
-				if err != nil {
-					return resp, fmt.Errorf("failed to refresh authentication tokens: %v", err)
+				if authToken == c.tokens.AuthToken {
+					newTokens, err := Authenticate(c.settings.Url, c.settings.UserName, c.settings.Secrets.Password, c.settings.IsSkipTlsVerifyCheck)
+					if err != nil {
+						return resp, fmt.Errorf("failed to refresh authentication tokens: %v", err)
+					}
+					c.tokens = newTokens
 				}
-
-				c.tokens = newTokens // Update tokens
 
 				// Retry request with new tokens
 				req2 := req.Clone(req.Context())
-				req2.Header.Set("Authorization", "Basic "+tokens.AuthToken)
-				req2.Header.Set("SCOM-CSRF-TOKEN", tokens.CSRFToken)
-				req2.Header.Set("Cookie", tokens.SessionID)
+				if len(bodyBytes) > 0 {
+					req2.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+				}
+
+				req2.Header.Set("Authorization", "Basic "+c.tokens.AuthToken)
+				req2.Header.Set("SCOM-CSRF-TOKEN", c.tokens.CSRFToken)
+				req2.Header.Set("Cookie", c.tokens.SessionID)
 				req2.Header.Set("Content-Type", "application/json")
 
 				return next.RoundTrip(req2)

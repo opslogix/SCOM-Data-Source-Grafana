@@ -1,4 +1,4 @@
-import { AsyncSelect, Box, Button, Field, MultiSelect, RadioButtonGroup, Select, Stack } from '@grafana/ui';
+import { AsyncSelect, Box, Button, Field, MultiSelect, RadioButtonGroup, Stack } from '@grafana/ui';
 import React, { useEffect, useState } from 'react';
 import { MonitoringClass, MonitoringGroup, MonitoringObject, StateQuery } from 'types';
 import { useDs } from './providers/ds.provider';
