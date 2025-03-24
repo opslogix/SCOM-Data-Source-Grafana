@@ -264,7 +264,7 @@ func (c *ScomClient) GetPerformanceData(duration int, instances []models.Monitor
 
 func (c *ScomClient) GetPerformanceCounters(objectIds []string) ([]models.PerformanceCounter, error) {
 	var wg sync.WaitGroup
-	uniqueCounters := sync.Map{} // Concurrent map
+	uniqueCounters := sync.Map{}
 	errChan := make(chan error, len(objectIds))
 
 	for _, objectId := range objectIds {
@@ -279,7 +279,7 @@ func (c *ScomClient) GetPerformanceCounters(objectIds []string) ([]models.Perfor
 			}
 
 			for _, counter := range response.Rows {
-				uniqueCounters.Store(counter.CounterName, counter) // Assuming PerformanceCounter has an ID field for uniqueness
+				uniqueCounters.Store(counter.CounterName, counter)
 			}
 		}(objectId)
 	}

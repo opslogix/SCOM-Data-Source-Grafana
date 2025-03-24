@@ -101,7 +101,6 @@ export default function PerformanceSection() {
       return;
     }
 
-    console.log(v);
     setSelectedClassInstances(v);
     if (v.length > 0) {
       setPerformanceCounters(await getPerformanceCounters(v.map(x => x.id)));
