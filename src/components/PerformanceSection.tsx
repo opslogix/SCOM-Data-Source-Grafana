@@ -40,7 +40,7 @@ export default function PerformanceSection() {
     const initialize = async () => {
       if (performanceQuery?.instances) {
         setSelectedClassInstances(performanceQuery.instances)
-        setPerformanceCounters(await getPerformanceCounters(performanceQuery.instances[0].id))
+        setPerformanceCounters(await getPerformanceCounters(performanceQuery.instances.map(x => x.id)))
       }
 
       if (performanceQuery?.groups && performanceQuery.groups.length > 0) {
@@ -52,13 +52,13 @@ export default function PerformanceSection() {
       } else {
         //Class configuration
         const selectedClass = performanceQuery.classes?.at(0)
-        if(selectedClass) {
+        if (selectedClass) {
           setSelectedClass(selectedClass);
           setMonitoringObjects(await getMonitoringObjects(selectedClass.className))
         }
         setSelectedCategory("class");
 
-        if(performanceQuery.instances && performanceQuery.instances.length > 0) {
+        if (performanceQuery.instances && performanceQuery.instances.length > 0) {
           setSelectedClassInstances(performanceQuery.instances)
         }
 
@@ -92,7 +92,7 @@ export default function PerformanceSection() {
     if (!classInstances || classInstances.length === 0) {
       setPerformanceCounters([]);
     } else {
-      setPerformanceCounters(await getPerformanceCounters(classInstances[0].id));
+      setPerformanceCounters(await getPerformanceCounters(classInstances.map(x => x.id)));
     }
   }
 
@@ -101,9 +101,10 @@ export default function PerformanceSection() {
       return;
     }
 
+    console.log(v);
     setSelectedClassInstances(v);
     if (v.length > 0) {
-      setPerformanceCounters(await getPerformanceCounters(v[0].id));
+      setPerformanceCounters(await getPerformanceCounters(v.map(x => x.id)));
     }
   }
 
@@ -115,10 +116,10 @@ export default function PerformanceSection() {
     setSelectedPerformanceCounter(v);
   }
 
-  const onGroupPerformanceCounterSelect = async(v?: PerformanceCounter) => {
+  const onGroupPerformanceCounterSelect = async (v?: PerformanceCounter) => {
     setSelectedGroupPerformanceCounter(v);
   }
-  
+
   const onGroupSelect = async (group?: MonitoringGroup | undefined) => {
     if (group === undefined) {
       return;
@@ -185,12 +186,11 @@ export default function PerformanceSection() {
                     </Field>
                   )
                 }
-
                 {
                   selectedClassInstances && (
                     <Field label="Counter">
                       <Select<PerformanceCounter>
-                        getOptionLabel={(v) => v.counterName}
+                        getOptionLabel={(v) => `${v.counterName} - ${v.objectName}` + (v.instanceName ? ` - ${v.instanceName}` : '')}
                         value={selectedPerformanceCounter}
                         options={performanceCounters}
                         onChange={(v) => onPerformanceCounterSelect(v as PerformanceCounter)} />

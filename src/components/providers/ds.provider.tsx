@@ -13,7 +13,7 @@ interface DsContextProps {
     getMonitoringObjectsByGroup: (groupClassName: string) => Promise<MonitoringObject[]>;
     getClassesForObject: (id: string) => Promise<MonitoringClass[]>;
     getMonitoringGroups: () => Promise<MonitoringGroup[]>;
-    getPerformanceCounters: (className: string) => Promise<PerformanceCounter[]>;
+    getPerformanceCounters: (entityIds: string[]) => Promise<PerformanceCounter[]>;
 }
 
 interface DsProviderProps {
@@ -59,8 +59,8 @@ export const DsProvider = ({ children, datasource, query, onChange, onRunQuery }
         getMonitors: async () => {
             return await datasource.getResource('getMonitors', { criteria: '' });
         },
-        getPerformanceCounters: async (performanceObjectId: string) => {
-            const counters = await datasource.getResource<PerformanceCounter[]>('getCounters', { performanceObjectId });
+        getPerformanceCounters: async (entityIds: string[]) => {
+            const counters = await datasource.getResource<PerformanceCounter[]>('getCounters', { entityIds });
             return counters;
         },
         getPerformance: async (counters: PerformanceCounter[], classes: MonitoringClass[], instances?: MonitoringObject[], groups?: MonitoringGroup[]) => {

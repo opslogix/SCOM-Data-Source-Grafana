@@ -262,15 +262,44 @@ func (c *ScomClient) GetPerformanceData(duration int, instances []models.Monitor
 	return performanceDataArray, nil
 }
 
-func (c *ScomClient) GetPerformanceCounters(objectId string) ([]models.PerformanceCounter, error) {
+func (c *ScomClient) GetPerformanceCounters(objectIds []string) ([]models.PerformanceCounter, error) {
+	var wg sync.WaitGroup
+	uniqueCounters := sync.Map{} // Concurrent map
+	errChan := make(chan error, len(objectIds))
 
-	// models.PerformanceCounterData
-	counters, err := requestToType[models.PerformanceCounterResponse](c, "GET", "/OperationsManager/data/performanceCounters/"+objectId, nil)
-	if err != nil {
-		return []models.PerformanceCounter{}, err
+	for _, objectId := range objectIds {
+		wg.Add(1)
+		go func(id string) {
+			defer wg.Done()
+
+			response, err := requestToType[models.PerformanceCounterResponse](c, "GET", "/OperationsManager/data/performanceCounters/"+id, nil)
+			if err != nil {
+				errChan <- err
+				return
+			}
+
+			for _, counter := range response.Rows {
+				uniqueCounters.Store(counter.CounterName, counter) // Assuming PerformanceCounter has an ID field for uniqueness
+			}
+		}(objectId)
 	}
 
-	return counters.Rows, nil
+	wg.Wait()
+	close(errChan)
+
+	// Collect errors if any
+	if len(errChan) > 0 {
+		return nil, <-errChan // Return the first error encountered
+	}
+
+	// Convert sync.Map to slice
+	result := []models.PerformanceCounter{}
+	uniqueCounters.Range(func(_, value interface{}) bool {
+		result = append(result, value.(models.PerformanceCounter))
+		return true
+	})
+
+	return result, nil
 }
 
 func (c *ScomClient) GetClassesByDisplayName(query string) ([]models.MonitoringClass, error) {

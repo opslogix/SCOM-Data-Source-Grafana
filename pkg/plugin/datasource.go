@@ -394,7 +394,7 @@ func (d *ScomDatasource) CallResource(ctx context.Context, req *backend.CallReso
 			return d.client.GetObjectsByClass(query.Get("className"))
 		},
 		"getCounters": func() (interface{}, error) {
-			return d.client.GetPerformanceCounters(query.Get("performanceObjectId"))
+			return d.client.GetPerformanceCounters(query["entityIds"])
 		},
 		"getObjectsHealthState": func() (interface{}, error) {
 			return d.client.GetObjectsByClass(query.Get("selectedClassNameHealthState"))
