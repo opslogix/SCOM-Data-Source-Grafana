@@ -1,3 +1,2 @@
 # SCOM-Data-Source-Grafana
-SCOM Data Source for Grafana
-test2
+For instructions on how to install the Plugin, goto this link: https://www.opslogix.com/knowledgebase/getting-started-with-the-scom-plugin-for-grafana
