@@ -100,10 +100,10 @@ export default function PerformanceSection() {
     }
   }
 
-  const onInstanceSelect = async (v?: MonitoringObject[] | undefined) => {
-    if (v == null) {
-      return;
-    }
+  // const onInstanceSelect = async (v?: MonitoringObject[] | undefined) => {
+  //   if (v == null) {
+  //     return;
+  //   }
 
     setSelectedClassInstances(v);
     if (v.length > 0) {
