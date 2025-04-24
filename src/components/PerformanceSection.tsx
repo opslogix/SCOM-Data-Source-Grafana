@@ -78,7 +78,11 @@ export default function PerformanceSection() {
   }, []);
 
   const onClassSelect = async (v?: MonitoringClass) => {
-    if (!v) return;
+
+    if (!v) {
+      return;
+    }
+
     setSelectedClass(v);
     setSelectedClassInstances([]);
     setSelectedPerformanceCounter(undefined);
@@ -103,7 +107,10 @@ export default function PerformanceSection() {
   };
 
   const onInstanceSelect = async (v?: MonitoringObject[]) => {
-    if (!v) return;
+  
+    if (!v) {
+      return;
+    }
 
     const isAllSelected = v.some((obj) => obj.id === '*');
 
@@ -120,15 +127,21 @@ export default function PerformanceSection() {
   };
 
   const onPerformanceCounterSelect = async (v?: PerformanceCounter) => {
-    if (v) setSelectedPerformanceCounter(v);
+    if (v) {
+      setSelectedPerformanceCounter(v);
+    }
   };
 
   const onGroupSelect = async (group?: MonitoringGroup) => {
-    if (group) setSelectedGroup(group);
+    if (group) {
+      setSelectedGroup(group);
+    }
   };
 
   const onGroupClassSelect = async (v?: MonitoringClass) => {
-    if (!v) return;
+    if (!v) {
+      return;
+    }
     setSelectedGroupClass(v);
     const classInstances = await getMonitoringObjects(v.className);
     if (!classInstances?.length) {
