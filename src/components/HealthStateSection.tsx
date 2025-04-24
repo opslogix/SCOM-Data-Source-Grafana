@@ -29,6 +29,9 @@ export default function HealthStateSection() {
     const [monitoringGroups] = useState<Promise<MonitoringGroup[]>>(getMonitoringGroups);
     const [monitoringClasses] = useState<Promise<MonitoringClass[]>>(getClasses(''));
 
+    const allInstancesOption = { displayName: '*' };
+    const extendedClassInstances = [allInstancesOption, ...classInstances];
+
     useEffect(() => {
         if (!stateQuery) {
             return;
@@ -113,11 +116,12 @@ export default function HealthStateSection() {
                                 </Field>
                                 <Field label="Instances">
                                     <MultiSelect<MonitoringObject>
-                                        options={classInstances}
-                                        value={selectedInstances}
-                                        getOptionLabel={(v) => v.displayName}
-                                        getOptionValue={(v) => v.displayName}
-                                        onChange={(v) => setSelectedInstances(v as MonitoringObject[])} />
+                                        options={extendedClassInstances}
+                                        value={selectedInstances} 
+                                        getOptionLabel={(v) => v.displayName} 
+                                        getOptionValue={(v) => v.displayName} 
+                                        onChange={(v) => { if ((v as MonitoringObject[]).some(instance => instance.displayName === '*')) {
+                                             setSelectedInstances(classInstances); } else { setSelectedInstances(v as MonitoringObject[]); } }} />
 
                                 </Field>
                                 {

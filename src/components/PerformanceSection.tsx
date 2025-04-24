@@ -27,10 +27,14 @@ export default function PerformanceSection() {
   const [selectedGroupClass, setSelectedGroupClass] = useState<MonitoringClass>();
   const [selectedGroupPerformanceCounter, setSelectedGroupPerformanceCounter] = useState<PerformanceCounter>();
   const [performanceCounters, setPerformanceCounters] = useState<PerformanceCounter[]>([]);
-  const [monitoringObjects, setMonitoringObjects] = useState<Array<SelectableValue<MonitoringObject>>>();
+  const [monitoringObjects, setMonitoringObjects] = useState<MonitoringObject[]>([]);
 
   const [monitoringGroups] = useState<Promise<MonitoringGroup[]>>(getMonitoringGroups);
   const [monitoringClasses] = useState<Promise<MonitoringClass[]>>(getClasses(''));
+
+  const allInstancesOption = { displayName: '*' };
+  const extendedClassInstances = [allInstancesOption, ...monitoringObjects];
+
 
   useEffect(() => {
     if (!performanceQuery) {
@@ -176,12 +180,12 @@ export default function PerformanceSection() {
                     <Field label="Instance">
                       <MultiSelect<MonitoringObject>
                         maxMenuHeight={200}
-                        getOptionLabel={(v) => v.displayName}
-                        getOptionValue={(v) => v.displayName}
-                        value={selectedClassInstances}
-                        options={monitoringObjects}
-                        onChange={(v) => onInstanceSelect(v as MonitoringObject[])}
-                      />
+                        options={extendedClassInstances} 
+                        value={selectedClassInstances} 
+                        getOptionLabel={(v) => v.displayName} 
+                        getOptionValue={(v) => v.displayName} 
+                        onChange={(v) => { if ((v as MonitoringObject[]).some(instance => instance.displayName === '*')) 
+                        { setSelectedClassInstances(monitoringObjects); } else { setSelectedClassInstances(v as MonitoringObject[]); } }} />
                     </Field>
                   )
                 }
