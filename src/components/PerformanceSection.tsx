@@ -5,20 +5,15 @@ import { MonitoringClass, MonitoringGroup, MonitoringObject, PerformanceCounter,
 import { SelectableValue } from '@grafana/data';
 
 export default function PerformanceSection() {
-
   const { getClasses, getMonitoringObjects, getMonitoringGroups, getPerformanceCounters, getPerformance, query } = useDs();
   const performanceQuery = query as PerformanceQuery;
 
-  const options: SelectableValue[] = [{
-    label: 'Class',
-    value: 'class'
-  }, {
-    label: 'Group',
-    value: 'group'
-  }]
+  const options: SelectableValue[] = [
+    { label: 'Class', value: 'class' },
+    { label: 'Group', value: 'group' },
+  ];
 
   const [selectedCategory, setSelectedCategory] = useState<string>();
-
   const [selectedClass, setSelectedClass] = useState<MonitoringClass>();
   const [selectedClassInstances, setSelectedClassInstances] = useState<Array<SelectableValue<MonitoringObject>>>();
   const [selectedPerformanceCounter, setSelectedPerformanceCounter] = useState<PerformanceCounter>();
@@ -27,14 +22,10 @@ export default function PerformanceSection() {
   const [selectedGroupClass, setSelectedGroupClass] = useState<MonitoringClass>();
   const [selectedGroupPerformanceCounter, setSelectedGroupPerformanceCounter] = useState<PerformanceCounter>();
   const [performanceCounters, setPerformanceCounters] = useState<PerformanceCounter[]>([]);
-  const [monitoringObjects, setMonitoringObjects] = useState<MonitoringObject[]>([]);
+  const [monitoringObjects, setMonitoringObjects] = useState<Array<SelectableValue<MonitoringObject>>>();
 
   const [monitoringGroups] = useState<Promise<MonitoringGroup[]>>(getMonitoringGroups);
   const [monitoringClasses] = useState<Promise<MonitoringClass[]>>(getClasses(''));
-
-  const allInstancesOption = { displayName: '*' };
-  const extendedClassInstances = [allInstancesOption, ...monitoringObjects];
-
 
   useEffect(() => {
     if (!performanceQuery) {
@@ -42,227 +33,255 @@ export default function PerformanceSection() {
     }
 
     const initialize = async () => {
-      if (performanceQuery?.instances) {
-        setSelectedClassInstances(performanceQuery.instances)
-        setPerformanceCounters(await getPerformanceCounters(performanceQuery.instances.map(x => x.id)))
+      if (performanceQuery.instances) {
+        setSelectedClassInstances(performanceQuery.instances);
+        setPerformanceCounters(await getPerformanceCounters(performanceQuery.instances.map((x) => x.id)));
       }
 
-      if (performanceQuery?.groups && performanceQuery.groups.length > 0) {
-        //Group configuration
-        setSelectedGroup(performanceQuery.groups.at(0));
-        setSelectedGroupClass(performanceQuery.classes?.at(0));
-        setSelectedCategory("group");
-        setSelectedGroupPerformanceCounter(performanceQuery?.counters?.at(0));
+      if (performanceQuery.groups?.length) {
+        setSelectedGroup(performanceQuery.groups[0]);
+        setSelectedGroupClass(performanceQuery.classes?.[0]);
+        setSelectedCategory('group');
+        setSelectedGroupPerformanceCounter(performanceQuery.counters?.[0]);
       } else {
-        //Class configuration
-        const selectedClass = performanceQuery.classes?.at(0)
-        if (selectedClass) {
-          setSelectedClass(selectedClass);
-          setMonitoringObjects(await getMonitoringObjects(selectedClass.className))
-        }
-        setSelectedCategory("class");
+        const selectedCls = performanceQuery.classes?.[0];
+        if (selectedCls) {
+          setSelectedClass(selectedCls);
+          const objs = await getMonitoringObjects(selectedCls.className);
 
-        if (performanceQuery.instances && performanceQuery.instances.length > 0) {
-          setSelectedClassInstances(performanceQuery.instances)
-        }
+          const allMonitoringObject: MonitoringObject = {
+            id: '*',
+            displayName: '*',
+            path: '',
+            fullname: 'All Instances',
+            classname: '',
+          };
 
-        setSelectedPerformanceCounter(performanceQuery?.counters?.at(0))
+          const allOption: SelectableValue<MonitoringObject> = {
+            label: 'All',
+            value: allMonitoringObject,
+            ...allMonitoringObject,
+          };
+
+          setMonitoringObjects([allOption, ...objs]);
+        }
+        setSelectedCategory('class');
+        if (performanceQuery.instances?.length) {
+          setSelectedClassInstances(performanceQuery.instances);
+        }
+        setSelectedPerformanceCounter(performanceQuery.counters?.[0]);
       }
-    }
+    };
 
     initialize();
-
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, []);
 
-  const onClassSelect = async (v?: MonitoringClass | undefined) => {
-    if (v === undefined) {
-      return;
-    }
-
+  const onClassSelect = async (v?: MonitoringClass) => {
+    if (!v) return;
     setSelectedClass(v);
     setSelectedClassInstances([]);
     setSelectedPerformanceCounter(undefined);
-    setMonitoringObjects(await getMonitoringObjects(v.className));
-  }
+
+    const objs = await getMonitoringObjects(v.className);
+
+    const allMonitoringObject: MonitoringObject = {
+      id: '*',
+      displayName: '*',
+      path: '',
+      fullname: 'All Monitoring Objects',
+      classname: '',
+    };
+
+    const allOption: SelectableValue<MonitoringObject> = {
+      label: 'All',
+      value: allMonitoringObject,
+      ...allMonitoringObject,
+    };
+
+    setMonitoringObjects([allOption, ...objs]);
+  };
+
+  const onInstanceSelect = async (v?: MonitoringObject[]) => {
+    if (!v) return;
+
+    const isAllSelected = v.some((obj) => obj.id === '*');
+
+    if (isAllSelected && monitoringObjects) {
+      const allInstances = monitoringObjects.filter((obj) => obj.id !== '*');
+      setSelectedClassInstances(allInstances);
+      setPerformanceCounters(await getPerformanceCounters(allInstances.map((x) => x.id)));
+    } else {
+      setSelectedClassInstances(v);
+      if (v.length) {
+        setPerformanceCounters(await getPerformanceCounters(v.map((x) => x.id)));
+      }
+    }
+  };
+
+  const onPerformanceCounterSelect = async (v?: PerformanceCounter) => {
+    if (v) setSelectedPerformanceCounter(v);
+  };
+
+  const onGroupSelect = async (group?: MonitoringGroup) => {
+    if (group) setSelectedGroup(group);
+  };
 
   const onGroupClassSelect = async (v?: MonitoringClass) => {
-    if (v === undefined) {
-      return;
-    }
-
+    if (!v) return;
     setSelectedGroupClass(v);
     const classInstances = await getMonitoringObjects(v.className);
-    if (!classInstances || classInstances.length === 0) {
+    if (!classInstances?.length) {
       setPerformanceCounters([]);
     } else {
-      setPerformanceCounters(await getPerformanceCounters(classInstances.map(x => x.id)));
+      setPerformanceCounters(await getPerformanceCounters(classInstances.map((x) => x.id)));
     }
-  }
-
-  // const onInstanceSelect = async (v?: MonitoringObject[] | undefined) => {
-  //   if (v == null) {
-  //     return;
-  //   }
-
-  //   setSelectedClassInstances(v);
-  //   if (v.length > 0) {
-  //     setPerformanceCounters(await getPerformanceCounters(v.map(x => x.id)));
-  //   }
-  // }
-
-  const onPerformanceCounterSelect = async (v?: PerformanceCounter | undefined) => {
-    if (v === undefined) {
-      return;
-    }
-
-    setSelectedPerformanceCounter(v);
-  }
+  };
 
   const onGroupPerformanceCounterSelect = async (v?: PerformanceCounter) => {
     setSelectedGroupPerformanceCounter(v);
-  }
-
-  const onGroupSelect = async (group?: MonitoringGroup | undefined) => {
-    if (group === undefined) {
-      return;
-    }
-    setSelectedGroup(group);
-  }
+  };
 
   const onCategoryChange = async (category: string) => {
-    setSelectedCategory(category)
-  }
+    setSelectedCategory(category);
+  };
 
   const loadClassOptions = async (inputValue: string): Promise<MonitoringClass[]> => {
     const classes = await monitoringClasses;
-
-    return classes.filter((monitoringClass) => monitoringClass.displayName.toLowerCase().includes(inputValue.toLowerCase()));
-  }
+    return classes.filter((cls) => cls.displayName.toLowerCase().includes(inputValue.toLowerCase()));
+  };
 
   const loadGroupClassOptions = async (inputValue: string): Promise<MonitoringClass[]> => {
     const classes = await monitoringClasses;
     const groups = await monitoringGroups;
-    return classes.filter((monitoringClass) => !groups.some((group) => group.id === monitoringClass.id) && monitoringClass.displayName.toLowerCase().includes(inputValue.toLowerCase()));
-  }
+    return classes.filter(
+      (cls) =>
+        !groups.some((group) => group.id === cls.id) &&
+        cls.displayName.toLowerCase().includes(inputValue.toLowerCase())
+    );
+  };
 
   const loadGroupOptions = async (inputValue: string): Promise<MonitoringGroup[]> => {
     const groups = await monitoringGroups;
     return groups.filter((g) => g.displayName.toLowerCase().includes(inputValue.toLowerCase()));
-  }
+  };
 
   return (
     <>
       <Box padding={1} paddingTop={2}>
-        <RadioButtonGroup
-          options={options}
-          value={selectedCategory}
-          onChange={onCategoryChange} />
+        <RadioButtonGroup options={options} value={selectedCategory} onChange={onCategoryChange} />
       </Box>
       <Box padding={1}>
-        <Stack direction={'column'} width={'auto'}>
-          {
-            selectedCategory === "class" && (
-              <>
+        <Stack direction="column" width="auto">
+          {selectedCategory === 'class' && (
+            <>
+              <Field label="Class">
+                <AsyncSelect<MonitoringClass>
+                  maxMenuHeight={200}
+                  defaultOptions
+                  value={selectedClass}
+                  getOptionLabel={(v) => v.displayName}
+                  loadOptions={loadClassOptions}
+                  onChange={(v) => onClassSelect(v as MonitoringClass)}
+                  cacheOptions
+                />
+              </Field>
+
+              {selectedClass && (
+                <Field label="Instance">
+                  <MultiSelect<MonitoringObject>
+                    maxMenuHeight={200}
+                    getOptionLabel={(v) => v.displayName}
+                    getOptionValue={(v) => v.displayName}
+                    value={selectedClassInstances}
+                    options={monitoringObjects}
+                    onChange={(v) => onInstanceSelect(v as MonitoringObject[])}
+                  />
+                </Field>
+              )}
+
+              {selectedClassInstances && (
+                <Field label="Counter">
+                  <Select<PerformanceCounter>
+                    getOptionLabel={(v) =>
+                      `${v.counterName} - ${v.objectName}${v.instanceName ? ` - ${v.instanceName}` : ''}`
+                    }
+                    value={selectedPerformanceCounter}
+                    options={performanceCounters}
+                    onChange={(v) => onPerformanceCounterSelect(v as PerformanceCounter)}
+                  />
+                </Field>
+              )}
+
+              {selectedPerformanceCounter && selectedClassInstances && selectedClass && (
+                <Field>
+                  <Button
+                    variant="secondary"
+                    icon="thumbs-up"
+                    onClick={() =>
+                      getPerformance([selectedPerformanceCounter], [selectedClass], selectedClassInstances as MonitoringObject[])
+                    }
+                  >
+                    Apply
+                  </Button>
+                </Field>
+              )}
+            </>
+          )}
+
+          {selectedCategory === 'group' && (
+            <>
+              <Field label="Group">
+                <AsyncSelect<MonitoringGroup>
+                  defaultOptions
+                  maxMenuHeight={200}
+                  getOptionLabel={(v) => v.displayName}
+                  value={selectedGroup}
+                  loadOptions={loadGroupOptions}
+                  onChange={(v) => onGroupSelect(v as MonitoringGroup)}
+                />
+              </Field>
+
+              {selectedGroup && (
                 <Field label="Class">
                   <AsyncSelect<MonitoringClass>
                     maxMenuHeight={200}
-                    defaultOptions={true}
-                    value={selectedClass}
+                    defaultOptions
+                    value={selectedGroupClass}
                     getOptionLabel={(v) => v.displayName}
-                    loadOptions={loadClassOptions}
-                    onChange={(v) => onClassSelect(v as MonitoringClass)}
-                    cacheOptions={true}
+                    loadOptions={loadGroupClassOptions}
+                    onChange={(v) => onGroupClassSelect(v as MonitoringClass)}
+                    cacheOptions
                   />
                 </Field>
-                {
-                  selectedClass && (
-                    <Field label="Instance">
-                      <MultiSelect<MonitoringObject>
-                        maxMenuHeight={200}
-                        options={extendedClassInstances} 
-                        value={selectedClassInstances} 
-                        getOptionLabel={(v) => v.displayName} 
-                        getOptionValue={(v) => v.displayName} 
-                        onChange={(v) => { if ((v as MonitoringObject[]).some(instance => instance.displayName === '*')) 
-                        { setSelectedClassInstances(monitoringObjects); } else { setSelectedClassInstances(v as MonitoringObject[]); } }} />
-                    </Field>
-                  )
-                }
-                {
-                  selectedClassInstances && (
-                    <Field label="Counter">
-                      <Select<PerformanceCounter>
-                        getOptionLabel={(v) => `${v.counterName} - ${v.objectName}` + (v.instanceName ? ` - ${v.instanceName}` : '')}
-                        value={selectedPerformanceCounter}
-                        options={performanceCounters}
-                        onChange={(v) => onPerformanceCounterSelect(v as PerformanceCounter)} />
-                    </Field>
-                  )
-                }
-                {
-                  selectedPerformanceCounter && selectedClassInstances && selectedClass && (
-                    <Field>
-                      <Button variant="secondary" icon="thumbs-up" onClick={() => getPerformance([selectedPerformanceCounter], [selectedClass], selectedClassInstances as MonitoringObject[])}>
-                        Apply
-                      </Button>
-                    </Field>
-                  )
-                }
-              </>
-            )
-          }
-          {
-            selectedCategory === "group" && (
-              <>
-                <Field label="Group">
-                  <AsyncSelect<MonitoringGroup>
-                    defaultOptions={true}
-                    maxMenuHeight={200}
-                    getOptionLabel={(v) => v.displayName}
-                    value={selectedGroup}
-                    loadOptions={loadGroupOptions}
-                    onChange={(v) => onGroupSelect(v as MonitoringGroup)}
+              )}
+
+              {selectedGroup && selectedGroupClass && (
+                <Field label="Counter">
+                  <Select<PerformanceCounter>
+                    getOptionLabel={(v) => v.counterName}
+                    value={selectedGroupPerformanceCounter}
+                    options={performanceCounters}
+                    onChange={(v) => onGroupPerformanceCounterSelect(v as PerformanceCounter)}
                   />
                 </Field>
-                {
-                  selectedGroup && (
-                    <Field label="Class">
-                      <AsyncSelect<MonitoringClass>
-                        maxMenuHeight={200}
-                        defaultOptions={true}
-                        value={selectedGroupClass}
-                        getOptionLabel={(v) => v.displayName}
-                        loadOptions={loadGroupClassOptions}
-                        onChange={(v) => onGroupClassSelect(v as MonitoringClass)}
-                        cacheOptions={true}
-                      />
-                    </Field>
-                  )
-                }
-                {
-                  selectedGroup && selectedGroupClass && (
-                    <Field label="Counter">
-                      <Select<PerformanceCounter>
-                        getOptionLabel={(v) => v.counterName}
-                        value={selectedGroupPerformanceCounter}
-                        options={performanceCounters}
-                        onChange={(v) => onGroupPerformanceCounterSelect(v as PerformanceCounter)} />
-                    </Field>
-                  )
-                }
-                {
-                  selectedGroup && selectedGroupClass && selectedGroupPerformanceCounter && (
-                    <Field>
-                      <Button variant="secondary" icon="thumbs-up" onClick={() => getPerformance([selectedGroupPerformanceCounter], [selectedGroupClass], undefined, [selectedGroup])}>
-                        Apply
-                      </Button>
-                    </Field>
-                  )
-                }
-              </>
-            )
-          }
+              )}
+
+              {selectedGroup && selectedGroupClass && selectedGroupPerformanceCounter && (
+                <Field>
+                  <Button
+                    variant="secondary"
+                    icon="thumbs-up"
+                    onClick={() =>
+                      getPerformance([selectedGroupPerformanceCounter], [selectedGroupClass], undefined, [selectedGroup])
+                    }
+                  >
+                    Apply
+                  </Button>
+                </Field>
+              )}
+            </>
+          )}
         </Stack>
       </Box>
     </>
