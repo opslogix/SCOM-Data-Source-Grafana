@@ -105,11 +105,11 @@ export default function PerformanceSection() {
   //     return;
   //   }
 
-    setSelectedClassInstances(v);
-    if (v.length > 0) {
-      setPerformanceCounters(await getPerformanceCounters(v.map(x => x.id)));
-    }
-  }
+  //   setSelectedClassInstances(v);
+  //   if (v.length > 0) {
+  //     setPerformanceCounters(await getPerformanceCounters(v.map(x => x.id)));
+  //   }
+  // }
 
   const onPerformanceCounterSelect = async (v?: PerformanceCounter | undefined) => {
     if (v === undefined) {
