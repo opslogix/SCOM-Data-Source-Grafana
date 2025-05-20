@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Azure/go-ntlmssp"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/httpclient"
 	"github.com/opslogix/scom-plugin-by-opslogix/pkg/models"
 )
@@ -23,31 +24,29 @@ type ScomClient struct {
 }
 
 // NewScomClient initializes a scom client with authentication middleware
-func NewScomClient(httpOptions httpclient.Options, settings *models.PluginSettings) (*ScomClient, error) {
-	//Authenticate
+func NewScomClient(_ httpclient.Options, settings *models.PluginSettings) (*ScomClient, error) {
 	tokens, err := Authenticate(settings.Url, settings.UserName, settings.Secrets.Password, settings.IsSkipTlsVerifyCheck)
 	if err != nil {
 		return nil, fmt.Errorf("failed to authenticate: %v", err)
 	}
 
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: settings.IsSkipTlsVerifyCheck},
+	}
+	ntlmTransport := &ntlmssp.Negotiator{
+		RoundTripper: tr,
+	}
+
+	httpClient := &http.Client{
+		Transport: ntlmTransport,
+		Timeout:   10 * time.Second,
+	}
+
 	client := &ScomClient{
-		settings: settings,
-		tokens:   tokens,
+		settings:   settings,
+		tokens:     tokens,
+		httpClient: httpClient,
 	}
-
-	httpOptions.ConfigureTLSConfig = func(opts httpclient.Options, tlsConfig *tls.Config) {
-		tlsConfig.InsecureSkipVerify = settings.IsSkipTlsVerifyCheck
-	}
-
-	httpOptions.Middlewares = append(httpOptions.Middlewares, httpclient.MiddlewareFunc(client.AuthMiddleware()))
-	httpOptions.Timeouts.Timeout = time.Second * 10
-
-	httpClient, err := httpclient.New(httpOptions)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create HTTP client: %v", err)
-	}
-
-	client.httpClient = httpClient
 
 	return client, nil
 }
@@ -62,23 +61,19 @@ func (c *ScomClient) AuthMiddleware() httpclient.MiddlewareFunc {
 				if err != nil {
 					return nil, fmt.Errorf("failed to read request body: %v", err)
 				}
-				req.Body = io.NopCloser(bytes.NewReader(bodyBytes)) // Restore body for first request
+				req.Body = io.NopCloser(bytes.NewReader(bodyBytes))
 			}
 
-			// Lock while accessing tokens
 			c.mu.Lock()
-			authToken := c.tokens.AuthToken
 			csrfToken := c.tokens.CSRFToken
 			sessionID := c.tokens.SessionID
 			c.mu.Unlock()
 
-			req.Header.Set("Authorization", "Basic "+authToken)
 			req.Header.Set("SCOM-CSRF-TOKEN", csrfToken)
 			req.Header.Set("Cookie", sessionID)
 			req.Header.Set("Content-Type", "application/json")
 
 			resp, err := next.RoundTrip(req)
-
 			if err != nil {
 				return resp, err
 			}
@@ -87,21 +82,17 @@ func (c *ScomClient) AuthMiddleware() httpclient.MiddlewareFunc {
 				c.mu.Lock()
 				defer c.mu.Unlock()
 
-				if authToken == c.tokens.AuthToken {
-					newTokens, err := Authenticate(c.settings.Url, c.settings.UserName, c.settings.Secrets.Password, c.settings.IsSkipTlsVerifyCheck)
-					if err != nil {
-						return resp, fmt.Errorf("failed to refresh authentication tokens: %v", err)
-					}
-					c.tokens = newTokens
+				newTokens, err := Authenticate(c.settings.Url, c.settings.UserName, c.settings.Secrets.Password, c.settings.IsSkipTlsVerifyCheck)
+				if err != nil {
+					return resp, fmt.Errorf("failed to refresh authentication tokens: %v", err)
 				}
+				c.tokens = newTokens
 
-				// Retry request with new tokens
 				req2 := req.Clone(req.Context())
 				if len(bodyBytes) > 0 {
 					req2.Body = io.NopCloser(bytes.NewReader(bodyBytes))
 				}
 
-				req2.Header.Set("Authorization", "Basic "+c.tokens.AuthToken)
 				req2.Header.Set("SCOM-CSRF-TOKEN", c.tokens.CSRFToken)
 				req2.Header.Set("Cookie", c.tokens.SessionID)
 				req2.Header.Set("Content-Type", "application/json")

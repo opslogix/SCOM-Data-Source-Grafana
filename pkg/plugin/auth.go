@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"github.com/Azure/go-ntlmssp"
 )
 
 type AuthTokens struct {
@@ -17,28 +18,27 @@ type AuthTokens struct {
 }
 
 func Authenticate(baseUrl string, userName string, password string, IsSkipTlsVerifyCheck bool) (AuthTokens, error) {
-	// Get tokens.
 	result := AuthTokens{}
 
-	bodyraw := fmt.Sprintf("AuthenticationMode:%s:%s", userName, password)
-	bytesAuthBody := []byte(bodyraw)
+	//bodyraw := fmt.Sprintf("AuthenticationMode:%s:%s", userName, password)
+	bytesAuthBody := []byte("Windows")
 	scomAuthNBodyString := base64.StdEncoding.EncodeToString(bytesAuthBody)
 	scomAuthNBody := fmt.Sprintf("'%s'", scomAuthNBodyString)
 
-	pair := fmt.Sprintf("%s:%s", userName, password)
-	basicToken := base64.StdEncoding.EncodeToString([]byte(pair))
-
 	scomAuthNUri := baseUrl + "/OperationsManager/authenticate"
 	scomHeader := map[string]string{
-		"Content-Type":  "application/json; charset=utf-8",
-		"Authorization": "Basic " + basicToken,
+		"Content-Type": "application/json; charset=utf-8",
 	}
 
-	// Create an HTTP client with custom TLS configuration to disable SSL certificate validation.
-	client := &http.Client{
-		Transport: &http.Transport{
+	// NTLM transport
+	ntlmTransport := ntlmssp.Negotiator{
+		RoundTripper: &http.Transport{
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: IsSkipTlsVerifyCheck},
 		},
+	}
+
+	client := &http.Client{
+		Transport: &ntlmTransport,
 	}
 
 	body := bytes.NewBufferString(scomAuthNBody)
@@ -47,6 +47,9 @@ func Authenticate(baseUrl string, userName string, password string, IsSkipTlsVer
 	if err != nil {
 		return result, err
 	}
+
+	// Set NTLM credentials
+	req.SetBasicAuth(userName, password)
 
 	for key, value := range scomHeader {
 		req.Header.Set(key, value)
@@ -59,10 +62,9 @@ func Authenticate(baseUrl string, userName string, password string, IsSkipTlsVer
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return result, errors.New(fmt.Sprintf("HTTP request failed with status code: %v", resp.Status))
+		return result, fmt.Errorf("HTTP request failed with status code: %v", resp.Status)
 	}
 
-	// Extract and store token values.
 	var scomSessionID, scomCSRFTokenEncoded string
 	for _, cookie := range resp.Cookies() {
 		if cookie.Name == "SCOMSessionId" {
@@ -81,7 +83,7 @@ func Authenticate(baseUrl string, userName string, password string, IsSkipTlsVer
 		return result, errors.New("scomSessionID or scomCSRFToken is empty")
 	}
 
-	result.AuthToken = basicToken
+	result.AuthToken = "" // NTLM is not using basic token
 	result.CSRFToken = scomCSRFToken
 	result.SessionID = scomSessionID
 
