@@ -204,7 +204,7 @@ export default function PerformanceSection() {
                 <Field label="Instance">
                   <MultiSelect<MonitoringObject>
                     maxMenuHeight={200}
-                    getOptionLabel={(v) => v.displayName}
+                    getOptionLabel={(v) => `${v.displayName} (${v.path})`}
                     getOptionValue={(v) => v.displayName}
                     value={selectedClassInstances}
                     options={monitoringObjects}

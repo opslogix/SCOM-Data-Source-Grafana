@@ -118,7 +118,7 @@ export default function HealthStateSection() {
                                     <MultiSelect<MonitoringObject>
                                         options={extendedClassInstances}
                                         value={selectedInstances} 
-                                        getOptionLabel={(v) => v.displayName} 
+                                        getOptionLabel={(v) => `${v.displayName} (${v.path})`}
                                         getOptionValue={(v) => v.displayName} 
                                         onChange={(v) => { if ((v as MonitoringObject[]).some(instance => instance.displayName === '*')) {
                                              setSelectedInstances(classInstances); } else { setSelectedInstances(v as MonitoringObject[]); } }} />
