@@ -118,11 +118,11 @@ func (d *ScomDatasource) QueryData(ctx context.Context, req *backend.QueryDataRe
 func (d *ScomDatasource) handleQuery(query backend.DataQuery) (data.Frames, error) {
 	// var qm models.QueryModel
 	// if err := json.Unmarshal(query.JSON, &qm); err != nil {
-	// 	return nil, err
+	//  return nil, err
 	// }
 
 	// if qm.Type == "" {
-	// 	return nil, nil
+	//  return nil, nil
 	// }
 
 	scomQuery, err := ParseQuery(query.JSON)
@@ -152,10 +152,6 @@ func (d *ScomDatasource) handleQuery(query backend.DataQuery) (data.Frames, erro
 				return nil, fmt.Errorf("counters are required")
 			}
 
-			if len(q.Instances) < 1 && len(q.Groups) < 1 {
-				return nil, fmt.Errorf("instances or Groups is required")
-			}
-
 			duration := int(query.TimeRange.Duration().Minutes())
 
 			//Are we getting performance by group? Get all instances belonging to this group and class
@@ -166,6 +162,16 @@ func (d *ScomDatasource) handleQuery(query backend.DataQuery) (data.Frames, erro
 				}
 
 				q.Instances = groupInstances.Rows
+			}
+
+			//No groups or instances defined, use wildcard for instances
+			if len(q.Instances) == 0 || q.Instances[0].ID == "*" {
+				allClassInstances, err := d.client.GetObjectsByClass(q.Classes[0].ID)
+				if err != nil {
+					return nil, err
+				}
+
+				q.Instances = allClassInstances
 			}
 
 			performanceData, err := d.client.GetPerformanceData(duration, q.Instances, q.Counters)
@@ -193,6 +199,23 @@ func (d *ScomDatasource) handleQuery(query backend.DataQuery) (data.Frames, erro
 
 				return d.buildHealthStateGroupFrame(states), nil
 			}
+
+			if len(q.Classes) == 0 {
+				return nil, fmt.Errorf("required property 'classes' is missing or empty")
+			}
+
+			//No groups or instances defined, use wildcard
+			instances, err := d.client.GetObjectsByClass(q.Classes[0].ID)
+			if err != nil {
+				return nil, err
+			}
+
+			states, err := d.client.GetHealthStateForObjects(instances)
+			if err != nil {
+				return nil, err
+			}
+
+			return d.buildHealthStateFrame(states, instances), nil
 		}
 	}
 

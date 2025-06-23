@@ -33,9 +33,21 @@ export default function PerformanceSection() {
     }
 
     const initialize = async () => {
+
       if (performanceQuery.instances) {
         setSelectedClassInstances(performanceQuery.instances);
-        setPerformanceCounters(await getPerformanceCounters(performanceQuery.instances.map((x) => x.id)));
+        if (performanceQuery.instances[0].id === '*') {
+          const a = performanceQuery.classes?.at(0)?.className
+          if (a) {
+            const allInstances = await getMonitoringObjects(a)
+            if (allInstances?.length) {
+              console.log('s  ')
+              setPerformanceCounters(await getPerformanceCounters([allInstances[0].id]));
+            }
+          }
+        } else {
+          setPerformanceCounters(await getPerformanceCounters(performanceQuery.instances.map((x) => x.id)));
+        }
       }
 
       if (performanceQuery.groups?.length) {
@@ -88,7 +100,11 @@ export default function PerformanceSection() {
     setSelectedPerformanceCounter(undefined);
 
     const objs = await getMonitoringObjects(v.className);
+    if (objs.length === 0) {
+      return setMonitoringObjects([objs]);
+    }
 
+    //Add wildcard monitoring object if there are any objects
     const allMonitoringObject: MonitoringObject = {
       id: '*',
       displayName: '*',
@@ -103,22 +119,29 @@ export default function PerformanceSection() {
       ...allMonitoringObject,
     };
 
-    setMonitoringObjects([allOption, ...objs]);
+    return setMonitoringObjects([allOption, ...objs]);
   };
 
   const onInstanceSelect = async (v?: MonitoringObject[]) => {
-  
+
     if (!v) {
       return;
     }
 
-    const isAllSelected = v.some((obj) => obj.id === '*');
+    const wildcardMonitoringObject = v.filter(obj => obj.id === '*');
+    const isAllSelected = wildcardMonitoringObject.length > 0;
 
     if (isAllSelected && monitoringObjects) {
+
+      console.log('wildcard used')
+      //Wildcard used, get all actual instances for class and retrieve performance counters
       const allInstances = monitoringObjects.filter((obj) => obj.id !== '*');
-      setSelectedClassInstances(allInstances);
+
+      //Set selected instance to the wildcard object
+      setSelectedClassInstances(wildcardMonitoringObject);
       setPerformanceCounters(await getPerformanceCounters(allInstances.map((x) => x.id)));
     } else {
+      console.log('test')
       setSelectedClassInstances(v);
       if (v.length) {
         setPerformanceCounters(await getPerformanceCounters(v.map((x) => x.id)));
@@ -204,7 +227,7 @@ export default function PerformanceSection() {
                 <Field label="Instance">
                   <MultiSelect<MonitoringObject>
                     maxMenuHeight={200}
-                    getOptionLabel={(v) => `${v.displayName} (${v.path})`}
+                    getOptionLabel={(v) => v.displayName}
                     getOptionValue={(v) => v.displayName}
                     value={selectedClassInstances}
                     options={monitoringObjects}
