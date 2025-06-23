@@ -93,26 +93,26 @@ func (d *ScomDatasource) QueryData(ctx context.Context, req *backend.QueryDataRe
 
 // Comes from Grafanas onChange() function from the frontend.
 // type queryModel struct {
-// 	Category string `json:"category"`
-// 	ToFetch  string `json:"toFetch"`
-// 	// Performance data.
-// 	PerformanceCounterName              string                        `json:"performanceCounterName"`
-// 	PerformanceCounterObjectName        string                        `json:"performanceCounterObjectName"`
-// 	PerformanceCounterInstanceName      string                        `json:"performanceCounterInstanceName"`
-// 	PerformanceGroupCounterName         string                        `json:"performanceGroupCounterName"`
-// 	PerformanceGroupCounterObjectName   string                        `json:"performanceGroupCounterObjectName"`
-// 	PerformanceGroupCounterInstanceName string                        `json:"performanceGroupCounterInstanceName"`
-// 	PerformanceObjects                  []models.ScomMonitoringObject `json:"performanceObjects"`
-// 	PerformanceObjectId                 string                        `json:"performanceObjectId"`
-// 	// Health state.
-// 	HealthStateObjects   []models.ScomMonitoringObject `json:"healthStateObjects"`
-// 	HealthStateObjectIds []string                      `json:"healthStateObjectIds"`
+//  Category string `json:"category"`
+//  ToFetch  string `json:"toFetch"`
+//  // Performance data.
+//  PerformanceCounterName              string                        `json:"performanceCounterName"`
+//  PerformanceCounterObjectName        string                        `json:"performanceCounterObjectName"`
+//  PerformanceCounterInstanceName      string                        `json:"performanceCounterInstanceName"`
+//  PerformanceGroupCounterName         string                        `json:"performanceGroupCounterName"`
+//  PerformanceGroupCounterObjectName   string                        `json:"performanceGroupCounterObjectName"`
+//  PerformanceGroupCounterInstanceName string                        `json:"performanceGroupCounterInstanceName"`
+//  PerformanceObjects                  []models.ScomMonitoringObject `json:"performanceObjects"`
+//  PerformanceObjectId                 string                        `json:"performanceObjectId"`
+//  // Health state.
+//  HealthStateObjects   []models.ScomMonitoringObject `json:"healthStateObjects"`
+//  HealthStateObjectIds []string                      `json:"healthStateObjectIds"`
 
-// 	SelectedClassName  string `json:"selectedClassName"`
-// 	HealthStateClassId string `json:"healthStateClassId"`
-// 	HealthStateGroupId string `json:"healthStateGroupId"`
-// 	// Alert.
-// 	AlertsCriteria string `json:"alertsCriteria"`
+//  SelectedClassName  string `json:"selectedClassName"`
+//  HealthStateClassId string `json:"healthStateClassId"`
+//  HealthStateGroupId string `json:"healthStateGroupId"`
+//  // Alert.
+//  AlertsCriteria string `json:"alertsCriteria"`
 // }
 
 func (d *ScomDatasource) handleQuery(query backend.DataQuery) (data.Frames, error) {
@@ -178,7 +178,7 @@ func (d *ScomDatasource) handleQuery(query backend.DataQuery) (data.Frames, erro
 			if err != nil {
 				return nil, err
 			}
-			return d.buildPerformanceFrame(performanceData), nil
+			return d.buildPerformanceFrame(performanceData, q.Counters[0].CounterName), nil
 		}
 	case models.StateQuery:
 		{
@@ -222,12 +222,11 @@ func (d *ScomDatasource) handleQuery(query backend.DataQuery) (data.Frames, erro
 	return nil, fmt.Errorf("unexpected value of Type")
 }
 
-func (d *ScomDatasource) buildPerformanceFrame(performanceData []models.PerformanceResponse) data.Frames {
+func (d *ScomDatasource) buildPerformanceFrame(performanceData []models.PerformanceResponse, counterName string) data.Frames {
 	frames := data.Frames{}
 
 	for _, entry := range performanceData {
 		frameName := entry.ObjectDisplayName
-
 		frame := data.NewFrame(frameName)
 
 		// Define fields for the frame
@@ -237,6 +236,7 @@ func (d *ScomDatasource) buildPerformanceFrame(performanceData []models.Performa
 		objectDisplayNameField := data.NewField("Object display name", nil, []string{})
 		objectPathField := data.NewField("Object paths", nil, []string{})
 		objectFullNameField := data.NewField("Object full name", nil, []string{})
+		counterNameField := data.NewField("Counter name", nil, []string{})
 
 		for _, dataset := range entry.Datasets {
 			// Sort timestamps to ensure order
@@ -265,11 +265,12 @@ func (d *ScomDatasource) buildPerformanceFrame(performanceData []models.Performa
 				objectDisplayNameField.Append(entry.ObjectDisplayName)
 				objectPathField.Append(entry.ObjectPath)
 				objectFullNameField.Append(entry.ObjectFullName)
+				counterNameField.Append(counterName)
 			}
 		}
 
 		// Add fields to the frame
-		frame.Fields = append(frame.Fields, timeField, valueField, objectIdField, objectDisplayNameField, objectPathField, objectFullNameField)
+		frame.Fields = append(frame.Fields, timeField, valueField, objectIdField, objectDisplayNameField, objectPathField, objectFullNameField, counterNameField)
 		frame.SetMeta(&data.FrameMeta{PreferredVisualization: data.VisTypeGraph})
 
 		// Add the frame to the collection
