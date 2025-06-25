@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sort"
 	"sync"
 	"time"
 
@@ -297,6 +298,10 @@ func (c *ScomClient) GetPerformanceCounters(objectIds []string) ([]models.Perfor
 	uniqueCounters.Range(func(_, value interface{}) bool {
 		result = append(result, value.(models.PerformanceCounter))
 		return true
+	})
+
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].CounterName < result[j].CounterName
 	})
 
 	return result, nil
