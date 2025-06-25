@@ -182,16 +182,11 @@ func (d *ScomDatasource) handleQuery(query backend.DataQuery) (data.Frames, erro
 		}
 	case models.StateQuery:
 		{
-			if len(q.Instances) > 0 {
-				states, err := d.client.GetHealthStateForObjects(q.Instances)
-				if err != nil {
-					return nil, err
-				}
-
-				return d.buildHealthStateFrame(states, q.Instances), nil
+			if len(q.Classes) == 0 {
+				return nil, fmt.Errorf("required property 'classes' is missing or empty")
 			}
 
-			if len(q.Groups) > 0 && len(q.Classes) > 0 {
+			if len(q.Groups) > 0 {
 				states, err := d.client.GetStateData(q.Groups[0].ID, q.Classes[0].ID)
 				if err != nil {
 					return nil, err
@@ -200,22 +195,22 @@ func (d *ScomDatasource) handleQuery(query backend.DataQuery) (data.Frames, erro
 				return d.buildHealthStateGroupFrame(states), nil
 			}
 
-			if len(q.Classes) == 0 {
-				return nil, fmt.Errorf("required property 'classes' is missing or empty")
+			//No groups, use wildcard for instances
+			if len(q.Instances) == 0 || q.Instances[0].ID == "*" {
+				allClassInstances, err := d.client.GetObjectsByClass(q.Classes[0].ID)
+				if err != nil {
+					return nil, err
+				}
+
+				q.Instances = allClassInstances
 			}
 
-			//No groups or instances defined, use wildcard
-			instances, err := d.client.GetObjectsByClass(q.Classes[0].ID)
+			states, err := d.client.GetHealthStateForObjects(q.Instances)
 			if err != nil {
 				return nil, err
 			}
 
-			states, err := d.client.GetHealthStateForObjects(instances)
-			if err != nil {
-				return nil, err
-			}
-
-			return d.buildHealthStateFrame(states, instances), nil
+			return d.buildHealthStateFrame(states, q.Instances), nil
 		}
 	}
 
