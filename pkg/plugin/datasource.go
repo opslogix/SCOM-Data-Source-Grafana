@@ -326,7 +326,7 @@ func (d *ScomDatasource) buildHealthStateFrame(healthStates []models.MonitoringD
 
 	var ids []string
 	var classHealthStates []string
-	var classHealthStatesInt []int
+	var classHealthStatesInt []int64
 	var alertCount []string
 	var displayName []string
 	var className []string
@@ -334,7 +334,7 @@ func (d *ScomDatasource) buildHealthStateFrame(healthStates []models.MonitoringD
 	var path []string
 
 	// Map to integer values
-	stateToInt := map[string]int{
+	stateToInt := map[string]int64{
 		"Success": 1,
 		"Warning": 2,
 		"Error":   3,
@@ -350,7 +350,7 @@ func (d *ScomDatasource) buildHealthStateFrame(healthStates []models.MonitoringD
 		if !ok {
 			healthStateInt = -1 // Optional: use -1 for unknown states
 		}
-		classHealthStatesInt = append(classHealthStatesInt, healthStateInt)
+		classHealthStatesInt = append(classHealthStatesInt, int64(healthStateInt))
 
 		alertCount = append(alertCount, strconv.Itoa(healthState.AlertCount))
 
@@ -361,6 +361,9 @@ func (d *ScomDatasource) buildHealthStateFrame(healthStates []models.MonitoringD
 			className = append(className, objData.ClassName)
 			fullName = append(fullName, objData.FullName)
 			path = append(path, objData.Path)
+		} else {
+			// Log missing object
+			backend.Logger.Warn("Missing objectData for health state", "objectID", healthState.ObjectID)
 		}
 	}
 
