@@ -326,16 +326,32 @@ func (d *ScomDatasource) buildHealthStateFrame(healthStates []models.MonitoringD
 
 	var ids []string
 	var classHealthStates []string
+	var classHealthStatesInt []int
 	var alertCount []string
 	var displayName []string
 	var className []string
 	var fullName []string
 	var path []string
 
+	// Map to integer values
+	stateToInt := map[string]int{
+		"Success": 1,
+		"Warning": 2,
+		"Error":   3,
+	}
+
 	for _, healthState := range healthStates {
 		// Data from health state request.
 		ids = append(ids, healthState.ObjectID)
 		classHealthStates = append(classHealthStates, healthState.HealthState)
+
+		// Convert to int with default fallback (-1 if not matched)
+		healthStateInt, ok := stateToInt[healthState.HealthState]
+		if !ok {
+			healthStateInt = -1 // Optional: use -1 for unknown states
+		}
+		classHealthStatesInt = append(classHealthStatesInt, healthStateInt)
+
 		alertCount = append(alertCount, strconv.Itoa(healthState.AlertCount))
 
 		// Data from objects request.
@@ -351,6 +367,7 @@ func (d *ScomDatasource) buildHealthStateFrame(healthStates []models.MonitoringD
 	frame.Fields = append(frame.Fields,
 		data.NewField("Id", nil, ids),
 		data.NewField("Health state", nil, classHealthStates),
+		data.NewField("Health state int", nil, classHealthStatesInt),
 		data.NewField("Alert count", nil, alertCount),
 		data.NewField("Class instance name", nil, displayName),
 		data.NewField("Class name", nil, className),
