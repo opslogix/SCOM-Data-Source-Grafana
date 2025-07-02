@@ -93,26 +93,26 @@ func (d *ScomDatasource) QueryData(ctx context.Context, req *backend.QueryDataRe
 
 // Comes from Grafanas onChange() function from the frontend.
 // type queryModel struct {
-// 	Category string `json:"category"`
-// 	ToFetch  string `json:"toFetch"`
-// 	// Performance data.
-// 	PerformanceCounterName              string                        `json:"performanceCounterName"`
-// 	PerformanceCounterObjectName        string                        `json:"performanceCounterObjectName"`
-// 	PerformanceCounterInstanceName      string                        `json:"performanceCounterInstanceName"`
-// 	PerformanceGroupCounterName         string                        `json:"performanceGroupCounterName"`
-// 	PerformanceGroupCounterObjectName   string                        `json:"performanceGroupCounterObjectName"`
-// 	PerformanceGroupCounterInstanceName string                        `json:"performanceGroupCounterInstanceName"`
-// 	PerformanceObjects                  []models.ScomMonitoringObject `json:"performanceObjects"`
-// 	PerformanceObjectId                 string                        `json:"performanceObjectId"`
-// 	// Health state.
-// 	HealthStateObjects   []models.ScomMonitoringObject `json:"healthStateObjects"`
-// 	HealthStateObjectIds []string                      `json:"healthStateObjectIds"`
+//  Category string `json:"category"`
+//  ToFetch  string `json:"toFetch"`
+//  // Performance data.
+//  PerformanceCounterName              string                        `json:"performanceCounterName"`
+//  PerformanceCounterObjectName        string                        `json:"performanceCounterObjectName"`
+//  PerformanceCounterInstanceName      string                        `json:"performanceCounterInstanceName"`
+//  PerformanceGroupCounterName         string                        `json:"performanceGroupCounterName"`
+//  PerformanceGroupCounterObjectName   string                        `json:"performanceGroupCounterObjectName"`
+//  PerformanceGroupCounterInstanceName string                        `json:"performanceGroupCounterInstanceName"`
+//  PerformanceObjects                  []models.ScomMonitoringObject `json:"performanceObjects"`
+//  PerformanceObjectId                 string                        `json:"performanceObjectId"`
+//  // Health state.
+//  HealthStateObjects   []models.ScomMonitoringObject `json:"healthStateObjects"`
+//  HealthStateObjectIds []string                      `json:"healthStateObjectIds"`
 
-// 	SelectedClassName  string `json:"selectedClassName"`
-// 	HealthStateClassId string `json:"healthStateClassId"`
-// 	HealthStateGroupId string `json:"healthStateGroupId"`
-// 	// Alert.
-// 	AlertsCriteria string `json:"alertsCriteria"`
+//  SelectedClassName  string `json:"selectedClassName"`
+//  HealthStateClassId string `json:"healthStateClassId"`
+//  HealthStateGroupId string `json:"healthStateGroupId"`
+//  // Alert.
+//  AlertsCriteria string `json:"alertsCriteria"`
 // }
 
 func (d *ScomDatasource) handleQuery(query backend.DataQuery) (data.Frames, error) {
@@ -172,28 +172,6 @@ func (d *ScomDatasource) handleQuery(query backend.DataQuery) (data.Frames, erro
 				}
 
 				q.Instances = allClassInstances
-			}
-
-			//Get performance counters if wildcard instance is used.
-			if q.Counters[0].InstanceName == "*" {
-				ids := make([]string, 0, len(q.Instances))
-				for _, obj := range q.Instances {
-					ids = append(ids, obj.ID)
-				}
-				allCounters, err := d.client.GetPerformanceCounters(ids)
-				if err != nil {
-					return nil, err
-				}
-
-				ref := q.Counters[0]
-				filtered := make([]models.PerformanceCounter, 0)
-				for _, c := range allCounters {
-					if c.ObjectName == ref.ObjectName && c.CounterName == ref.CounterName {
-						filtered = append(filtered, c)
-					}
-				}
-
-				q.Counters = filtered
 			}
 
 			performanceData, err := d.client.GetPerformanceData(duration, q.Instances, q.Counters)
@@ -348,16 +326,32 @@ func (d *ScomDatasource) buildHealthStateFrame(healthStates []models.MonitoringD
 
 	var ids []string
 	var classHealthStates []string
+	var classHealthStatesInt []int64
 	var alertCount []string
 	var displayName []string
 	var className []string
 	var fullName []string
 	var path []string
 
+	// Map to integer values
+	stateToInt := map[string]int64{
+		"Success": 1,
+		"Warning": 2,
+		"Error":   3,
+	}
+
 	for _, healthState := range healthStates {
 		// Data from health state request.
 		ids = append(ids, healthState.ObjectID)
 		classHealthStates = append(classHealthStates, healthState.HealthState)
+
+		// Convert to int with default fallback (-1 if not matched)
+		healthStateInt, ok := stateToInt[healthState.HealthState]
+		if !ok {
+			healthStateInt = -1 // Optional: use -1 for unknown states
+		}
+		classHealthStatesInt = append(classHealthStatesInt, int64(healthStateInt))
+
 		alertCount = append(alertCount, strconv.Itoa(healthState.AlertCount))
 
 		// Data from objects request.
@@ -367,12 +361,16 @@ func (d *ScomDatasource) buildHealthStateFrame(healthStates []models.MonitoringD
 			className = append(className, objData.ClassName)
 			fullName = append(fullName, objData.FullName)
 			path = append(path, objData.Path)
+		} else {
+			// Log missing object
+			backend.Logger.Warn("Missing objectData for health state", "objectID", healthState.ObjectID)
 		}
 	}
 
 	frame.Fields = append(frame.Fields,
 		data.NewField("Id", nil, ids),
 		data.NewField("Health state", nil, classHealthStates),
+		data.NewField("Health state int", nil, classHealthStatesInt),
 		data.NewField("Alert count", nil, alertCount),
 		data.NewField("Class instance name", nil, displayName),
 		data.NewField("Class name", nil, className),

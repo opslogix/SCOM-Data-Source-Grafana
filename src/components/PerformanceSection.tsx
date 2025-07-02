@@ -41,6 +41,7 @@ export default function PerformanceSection() {
           if (a) {
             const allInstances = await getMonitoringObjects(a)
             if (allInstances?.length) {
+              console.log('s  ')
               setPerformanceCounters(await getPerformanceCounters([allInstances[0].id]));
             }
           }
@@ -131,48 +132,16 @@ export default function PerformanceSection() {
     const isAllSelected = wildcardMonitoringObject.length > 0;
 
     if (isAllSelected && monitoringObjects) {
+
+      console.log('wildcard used')
       //Wildcard used, get all actual instances for class and retrieve performance counters
       const allInstances = monitoringObjects.filter((obj) => obj.id !== '*');
 
       //Set selected instance to the wildcard object
       setSelectedClassInstances(wildcardMonitoringObject);
-      const counters = await getPerformanceCounters(allInstances.map((x) => x.id));
-
-      //Add wildcard option for instances
-
-      // Step 1: Group counters by counterName
-      const grouped = new Map<string, PerformanceCounter[]>()
-
-      for (const counter of counters) {
-        if (!grouped.has(counter.counterName)) {
-          grouped.set(counter.counterName, [])
-        }
-        grouped.get(counter.counterName)!.push(counter)
-      }
-
-      // Step 2: Build the final ordered list
-      const result: PerformanceCounter[] = []
-
-      for (const [counterName, group] of grouped.entries()) {
-        const uniqueInstances = new Set(group.map(c => c.instanceName))
-
-        // Optional: pick the first objectName in the group
-        const objectName = group[0].objectName
-
-        if (uniqueInstances.size > 1) {
-          // Add wildcard first
-          result.push({
-            objectName,
-            counterName,
-            instanceName: '*',
-          })
-        }
-
-        // Add the original group members
-        result.push(...group)
-      }
-      setPerformanceCounters(result);
+      setPerformanceCounters(await getPerformanceCounters(allInstances.map((x) => x.id)));
     } else {
+      console.log('test')
       setSelectedClassInstances(v);
       if (v.length) {
         setPerformanceCounters(await getPerformanceCounters(v.map((x) => x.id)));

@@ -41,9 +41,7 @@ func NewScomClient(httpOptions httpclient.Options, settings *models.PluginSettin
 	}
 
 	httpOptions.Middlewares = append(httpOptions.Middlewares, httpclient.MiddlewareFunc(client.AuthMiddleware()))
-	httpOptions.Timeouts.Timeout = time.Second * 60
-	httpOptions.Timeouts.KeepAlive = time.Second * 60
-	httpOptions.Timeouts.DialTimeout = time.Second * 60
+	httpOptions.Timeouts.Timeout = time.Second * 10
 
 	httpClient, err := httpclient.New(httpOptions)
 	if err != nil {
@@ -218,6 +216,8 @@ func (c *ScomClient) GetMonitoringData(ids []string) ([]models.MonitoringDataRes
 			healthStateData, err := requestToType[models.MonitoringDataResponse](c, "GET", "/OperationsManager/data/monitoring/"+id, nil)
 			if err == nil {
 				result = append(result, healthStateData)
+			} else {
+				//maybe log ?
 			}
 
 			wg.Done()
@@ -230,57 +230,42 @@ func (c *ScomClient) GetMonitoringData(ids []string) ([]models.MonitoringDataRes
 }
 
 func (c *ScomClient) GetPerformanceData(duration int, instances []models.MonitoringObject, counters []models.PerformanceCounter) ([]models.PerformanceResponse, error) {
-
-	var (
-		result []models.PerformanceResponse
-		wg     = sync.WaitGroup{}
-	)
-
-	wg.Add(len(instances))
-
-	performanceCounters := make([]interface{}, 0, len(counters))
-	for _, c := range counters {
-		performanceCounters = append(performanceCounters, map[string]interface{}{
-			"countername":  c.CounterName,
-			"objectname":   c.ObjectName,
-			"instancename": c.InstanceName,
-		})
-	}
+	var performanceDataArray []models.PerformanceResponse
 
 	for _, instance := range instances {
+		requestBody := models.ScomPerformanceRequest{
+			Duration: duration,
+			ID:       instance.ID,
+			// PerformanceCounters: counters,
+			PerformanceCounters: []interface{}{
+				map[string]interface{}{
+					"countername":  counters[0].CounterName,
+					"objectname":   counters[0].ObjectName,
+					"instancename": counters[0].InstanceName,
+				},
+			},
+		}
 
-		go func(id string) {
-			defer wg.Done()
+		performanceData, err := requestToType[models.PerformanceResponse](c, "POST", "/OperationsManager/data/performance", requestBody)
+		if err != nil {
+			return []models.PerformanceResponse{}, err
+		}
 
-			requestBody := models.ScomPerformanceRequest{
-				Duration:            duration,
-				ID:                  instance.ID,
-				PerformanceCounters: performanceCounters,
-			}
+		// Adding object information to the performance data.
+		performanceData.ObjectId = instance.ID
+		performanceData.ObjectDisplayName = instance.DisplayName
+		performanceData.ObjectPath = instance.Path
+		performanceData.ObjectFullName = instance.FullName
 
-			performanceData, err := requestToType[models.PerformanceResponse](c, "POST", "/OperationsManager/data/performance", requestBody)
-			if err == nil {
-				if len(performanceData.Datasets) > 0 {
-					performanceData.ObjectId = instance.ID
-					performanceData.ObjectDisplayName = instance.DisplayName
-					performanceData.ObjectPath = instance.Path
-					performanceData.ObjectFullName = instance.FullName
-
-					result = append(result, performanceData)
-				}
-			}
-		}(instance.ID)
+		performanceDataArray = append(performanceDataArray, performanceData)
 	}
 
-	wg.Wait()
-
-	return result, nil
+	return performanceDataArray, nil
 }
 
 func (c *ScomClient) GetPerformanceCounters(objectIds []string) ([]models.PerformanceCounter, error) {
 	var wg sync.WaitGroup
 	uniqueCounters := sync.Map{}
-
 	errChan := make(chan error, len(objectIds))
 
 	for _, objectId := range objectIds {
@@ -295,7 +280,7 @@ func (c *ScomClient) GetPerformanceCounters(objectIds []string) ([]models.Perfor
 			}
 
 			for _, counter := range response.Rows {
-				uniqueCounters.Store(counter.CounterName+counter.InstanceName, counter)
+				uniqueCounters.Store(counter.CounterName, counter)
 			}
 		}(objectId)
 	}
@@ -316,7 +301,7 @@ func (c *ScomClient) GetPerformanceCounters(objectIds []string) ([]models.Perfor
 	})
 
 	sort.Slice(result, func(i, j int) bool {
-		return result[i].CounterName+result[i].InstanceName < result[j].CounterName+result[j].InstanceName
+		return result[i].CounterName < result[j].CounterName
 	})
 
 	return result, nil
